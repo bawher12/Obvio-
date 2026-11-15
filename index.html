@@ -36,7 +36,7 @@ footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 /* 1) Pega aquí los datos de tu proyecto (Supabase > Project Settings > API). La anon key es pública: la seguridad la da RLS. */
-const SUPABASE_URL="https://nxkboifpaunyootiovis.supabase.co/rest/v1/", SUPABASE_KEY="sb_publishable_UQUO0SZmVi9BlHE3Xi48vw_HXF8FOxY";
+const SUPABASE_URL="https://nxkboifpaunyootiovis.supabase.co", SUPABASE_KEY="sb_publishable_UQUO0SZmVi9BlHE3Xi48vw_HXF8FOxY";
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=i=>document.getElementById(i), app=$("app");
 const cop=n=>"$"+Number(n).toLocaleString("es-CO");

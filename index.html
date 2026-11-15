@@ -31,6 +31,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 ul.ck{padding-left:18px;margin:8px 0 0}.live .r{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.live .r:last-child{border:0}
 @media(min-width:720px){.hero{grid-template-columns:1.2fr 1fr;align-items:center}}
 footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
+.note{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
 </style></head><body>
 <div class="wrap" id="wrap"><header><button class="logo" id="home" aria-label="Ir al inicio" style="border:0;background:none;color:inherit;padding:0">Obvio<i>!</i></button><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -47,10 +48,10 @@ function estado(i,pagos){const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==p
  if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
 let U,P;
 function home(){$("out").hidden=true;$("wrap").style.maxWidth="920px";
- app.innerHTML=`<section class="hero"><div><h1>El arriendo, claro para los dos.</h1><p>Recordatorios, pago por Bre-B o consignación y comprobante en un solo lugar. Propietarios e inquilinos ven lo mismo: qué se paga, cuándo y si ya quedó al día. Sin comisión de pasarela.</p>
+ app.innerHTML=`<section class="hero"><div><h1>El arriendo, claro para los dos.</h1><p>Recordatorios, pago por Bre-B o transferencia y comprobante en un solo lugar. Propietarios e inquilinos ven lo mismo: qué se paga, cuándo y si ya quedó al día. Sin comisión de pasarela.</p>
  <div class="ctas"><button id="h-in">Entrar</button><button class="alt" id="h-up">Crear cuenta</button></div></div>
  <div class="card live"><div class="row" style="padding-bottom:8px"><b>Noviembre</b>${bd("ok")}</div><div class="r"><span>Apto 302</span>${bd("ok")}</div><div class="r"><span>Bodega Zona Franca</span>${bd("wait")}</div><div class="r"><span>Finca El Roble</span>${bd("pend")}</div></div></section>
- <section class="sec"><h2>Así funciona</h2><div class="grid"><div class="card"><span class="n">1</span><h3>Registra tus inmuebles</h3><p class="mut">Casas, apartamentos, bodegas, oficinas o fincas, con su valor y fecha de pago.</p></div><div class="card"><span class="n">2</span><h3>El inquilino paga</h3><p class="mut">Por Bre-B o consignación, y avisa en la app. Obvio le recuerda antes de la fecha.</p></div><div class="card"><span class="n">3</span><h3>Confirmas y listo</h3><p class="mut">Ambos ven el estado al día y el inquilino conserva su comprobante.</p></div></div></section>
+ <section class="sec"><h2>Así funciona</h2><div class="grid"><div class="card"><span class="n">1</span><h3>Registra tus inmuebles</h3><p class="mut">Casas, apartamentos, bodegas, oficinas o fincas, con su valor y fecha de pago.</p></div><div class="card"><span class="n">2</span><h3>El inquilino paga</h3><p class="mut">Por Bre-B o transferencia, y avisa en la app. Obvio le recuerda antes de la fecha.</p></div><div class="card"><span class="n">3</span><h3>Confirmas y listo</h3><p class="mut">Ambos ven el estado al día y el inquilino conserva su comprobante.</p></div></div></section>
  <section class="sec"><div class="grid"><div class="card"><h3>Para propietarios</h3><ul class="ck"><li>Quién paga a tiempo, quién está en mora y quién al día</li><li>Todos tus inmuebles en un solo panel</li><li>Sin comisión de pasarela</li></ul></div><div class="card"><h3>Para inquilinos</h3><ul class="ck"><li>Recordatorio antes de cada fecha de pago</li><li>Datos de pago siempre a la mano</li><li>Comprobante cuando pagas</li></ul></div></div></section>
  <section class="sec"><h2>Planes</h2><div class="grid"><div class="card"><h3>Gratis</h3><div class="mut">2 inmuebles</div></div><div class="card"><h3>Básico</h3><div class="mut">Hasta 5 inmuebles</div></div><div class="card"><h3>Plus</h3><div class="mut">Hasta 12 inmuebles</div></div><div class="card"><h3>Empresarial</h3><div class="mut">Inmobiliarias y administradores</div></div></div></section>
  <footer class="f">Obvio! · Arriendos claros</footer>`;
@@ -67,39 +68,48 @@ function auth(modo="in"){$("out").hidden=true;$("wrap").style.maxWidth="560px";
    if(!r.error&&!r.data.session){$("er").textContent="Revisa tu correo para confirmar la cuenta y luego entra.";return}}
   else r=await db.auth.signInWithPassword({email:em,password:pw});
   if(r.error)$("er").textContent=r.error.message;else boot()}}
+function live(){if(live.c)return;live.c=1;db.channel("pagos").on("postgres_changes",{event:"*",schema:"public",table:"pagos"},()=>{
+ if(P.rol=="propietario"){const f=$("n");if(f&&(f.value||$("v").value||$("d").value)){$("er").textContent="Llegó un pago nuevo. Termina o borra el formulario y recarga la página.";return}owner()}
+ else if(!($("f")&&$("f").files.length))tenant()}).subscribe()}
 async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return home();$("wrap").style.maxWidth="560px";
  $("out").hidden=false;
  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data;
  if(!P){const m=U.user_metadata||{},rol=m.rol||localStorage.obvio_rol||"propietario",nombre=m.nombre||localStorage.obvio_nombre||U.email;
   const r=await db.from("profiles").insert({id:U.id,nombre,rol});if(r.error){app.innerHTML=`<div class="card err">${r.error.message}</div>`;return}
   P={rol,nombre,plan:"gratis"}}
- P.rol=="propietario"?owner():tenant()}
+ live();P.rol=="propietario"?owner():tenant()}
 async function owner(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
- const I=i.data||[],G=g.data||[];
+ const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length;
  app.innerHTML=`<div class="card"><h3>Hola, ${P.nombre}</h3><div class="mut">Plan ${P.plan} · ${I.length} ${I.length==1?"inmueble":"inmuebles"}</div></div>
+ ${n?`<div class="card" style="border-color:var(--wait)"><b>Tienes ${n} ${n==1?"pago":"pagos"} por confirmar</b></div>`:""}
  ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
   return `<div class="card"><div class="row"><h3>${x.nombre}</h3>${bd(s)}</div><div class="mut">${x.tipo} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>
   <div class="mut" style="margin-top:6px">${x.inquilino_id?"Con inquilino":`Código para invitar: <span class="code">${x.codigo}</span>`}</div>
-  ${w?`<button class="full" data-ok="${w.id}">Confirmar pago recibido (${w.metodo})</button>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
+  ${w?`<div class="note"><b>Pago por confirmar</b><br><span class="mut">${cop(w.valor)} por ${w.metodo=="bre-b"?"Bre-B":"transferencia"} · referencia <span class="code">${w.referencia||"sin referencia"}</span>. Revisa en tu cuenta que el dinero entró antes de confirmar.</span>${w.soporte_url?`<button class="alt full" data-sop="${w.soporte_url}">Ver comprobante</button>`:""}<button class="full" data-ok="${w.id}">Ya verifiqué, confirmar pago</button></div>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
  <div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)"><select id="t"><option>casa</option><option>apartamento</option><option>bodega</option><option>oficina</option><option>finca</option></select>
  <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">
  <div class="err" id="er">${msg}</div><button class="full" id="add">Agregar</button></div>`;
  $("add").onclick=async()=>{const r=await db.from("inmuebles").insert({propietario_id:U.id,nombre:$("n").value.trim(),tipo:$("t").value,valor:+$("v").value,dia_pago:+$("d").value});
   owner(r.error?r.error.message:"")};
- document.querySelectorAll("[data-ok]").forEach(b=>b.onclick=async()=>{await db.from("pagos").update({estado:"confirmado"}).eq("id",b.dataset.ok);owner()})}
+ document.querySelectorAll("[data-ok]").forEach(b=>b.onclick=async()=>{await db.from("pagos").update({estado:"confirmado"}).eq("id",b.dataset.ok);owner()});
+ document.querySelectorAll("[data-sop]").forEach(b=>b.onclick=async()=>{const r=await db.storage.from("soportes").createSignedUrl(b.dataset.sop,300);if(r.data)window.open(r.data.signedUrl,"_blank");else $("er").textContent=r.error.message})}
 async function tenant(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*")]);const x=(i.data||[])[0],G=g.data||[];
  if(!x){app.innerHTML=`<div class="card"><h2>Únete a tu inmueble</h2><p class="mut">Pídele a tu propietario el código de invitación.</p><input id="c" placeholder="Código"><div class="err" id="er">${msg}</div><button class="full" id="j">Unirme</button></div>`;
   $("j").onclick=async()=>{const r=await db.rpc("unirse",{p_codigo:$("c").value});tenant(r.error?r.error.message:"")};return}
- const s=estado(x,G);
+ const s=estado(x,G),ref="OB-"+x.codigo.slice(0,4).toUpperCase()+"-"+per().slice(5,7);
  app.innerHTML=`<div class="card" style="text-align:center"><div class="mut">${x.nombre}</div><h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
  <div class="card"><div class="row"><span class="mut">Arriendo del mes</span><b style="font-size:22px">${cop(x.valor)}</b></div><div class="mut">Paga el día ${x.dia_pago}</div>
- ${s=="pend"||s=="mora"?`<select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por consignación</option></select><div class="err" id="er">${msg}</div><button class="full" id="pay">Ya pagué</button>`:""}
+ ${s=="pend"||s=="mora"?`<div class="note"><b>Referencia de tu pago</b><br><span class="code">${ref}</span><br><span class="mut">Escríbela en la descripción de la transferencia.</span></div><select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por transferencia bancaria</option></select><div class="err" id="er">${msg}</div><label class="mut" style="display:block;margin-top:10px">Comprobante (opcional)</label><input id="f" type="file" accept="image/*,application/pdf"><button class="full" id="pay">Ya hice el pago</button>`:""}
  ${s=="wait"?`<p class="mut">Tu propietario debe confirmar el pago.</p>`:""}${s=="ok"?`<p class="mut">Pago confirmado. Estás al día.</p>`:""}</div>`;
- if($("pay"))$("pay").onclick=async()=>{const r=await db.from("pagos").insert({inmueble_id:x.id,periodo:per(),valor:x.valor,metodo:$("m").value});tenant(r.error?r.error.message:"")}}
+ if($("pay"))$("pay").onclick=async()=>{$("pay").disabled=true;let path=null;const f=$("f").files[0];
+  if(f){if(f.size>5*1024*1024)return tenant("El comprobante pesa más de 5 MB");
+   const ext=(f.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");path=x.id+"/"+per()+"-"+Date.now()+"."+ext;
+   const u=await db.storage.from("soportes").upload(path,f);if(u.error)return tenant(u.error.message)}
+  const r=await db.from("pagos").insert({inmueble_id:x.id,periodo:per(),valor:x.valor,metodo:$("m").value,referencia:ref,soporte_url:path});tenant(r.error?r.error.message:"")}}
 $("home").onclick=()=>U?boot():home();
-$("out").onclick=async()=>{await db.auth.signOut();boot()};
+$("out").onclick=async()=>{await db.auth.signOut();db.removeAllChannels();live.c=0;boot()};
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
 boot();
 </script></body></html>

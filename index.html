@@ -31,6 +31,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 ul.ck{padding-left:18px;margin:8px 0 0}.live .r{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.live .r:last-child{border:0}
 @media(min-width:720px){.hero{grid-template-columns:1.2fr 1fr;align-items:center}}
 footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.stat{border-radius:12px;padding:12px;text-align:center}.stat b{display:block;font-size:26px}.stat span{font-size:13px}
 .note{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
 </style></head><body>
 <div class="wrap" id="wrap"><header><button class="logo" id="home" aria-label="Ir al inicio" style="border:0;background:none;color:inherit;padding:0">Obvio<i>!</i></button><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
@@ -80,6 +81,15 @@ function pdf(x,p){const {jsPDF}=window.jspdf,d=new jsPDF(),L=20;
  d.setDrawColor(221,227,234);d.line(L,y,190,y);
  d.setFontSize(9);d.setTextColor(90,107,124);d.text("Pago registrado por el inquilino y confirmado por el propietario en Obvio!.",L,y+10);
  d.save("comprobante-"+p.periodo.slice(0,7)+".pdf")}
+function hist(x,G){const out=[],hoy=new Date(),c0=new Date(x.created_at),ini=new Date(c0.getFullYear(),c0.getMonth(),1);
+ for(let k=0;k<6;k++){const d=new Date(hoy.getFullYear(),hoy.getMonth()-k,1);if(d<ini)break;
+  const pe=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01",p=G.find(g=>g.inmueble_id==x.id&&g.periodo==pe),due=new Date(d.getFullYear(),d.getMonth(),x.dia_pago,23,59,59);
+  out.push({per:pe,st:p?(p.estado=="por_confirmar"?"wait":(new Date(p.created_at)<=due?"ok":"tarde")):(hoy>due?"mora":"pend")})}
+ return out}
+const LB={ok:"A tiempo",tarde:"Con atraso",mora:"Sin pago",pend:"Pendiente",wait:"Por confirmar"},CL={ok:"ok",tarde:"pend",mora:"mora",pend:"pend",wait:"wait"};
+function histHTML(x,G){if(!x.inquilino_id)return "";const h=hist(x,G),c=h.filter(m=>m.st=="ok"||m.st=="tarde"||m.st=="mora"),a=c.filter(m=>m.st=="ok").length,
+ t=c.length?" · puntualidad "+Math.round(a/c.length*100)+"% ("+a+" de "+c.length+")":"";
+ return `<details style="margin-top:8px"><summary class="mut" style="cursor:pointer">Historial${t}</summary>${h.map(m=>`<div class="row" style="margin-top:8px"><span>${mes(m.per)}</span><span class="badge ${CL[m.st]}">${LB[m.st]}</span></div>`).join("")}</details>`}
 const VAPID_PUBLIC="BH7vsfO0fOWgCEEqgI872EWPpk-gIDPrhbLs26002M_HpT109l4z_lMdDHYyrnI3K8jVm_ZCVrIbs7-LPlNfXBA";
 const b64=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(t+"=".repeat((4-t.length%4)%4)),c=>c.charCodeAt(0))};
 async function pushCard(){const d=document.createElement("div");d.className="card";app.appendChild(d);
@@ -103,12 +113,14 @@ async function boot(){const {data:{session}}=await db.auth.getSession();U=sessio
  live();P.rol=="propietario"?owner():tenant()}
 async function owner(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
- const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length;
+ const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,E=I.map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;
  app.innerHTML=`<div class="card"><h3>Hola, ${P.nombre}</h3><div class="mut">Plan ${P.plan} · ${I.length} ${I.length==1?"inmueble":"inmuebles"}</div></div>
+ ${I.length?`<div class="stats"><div class="stat ok"><b>${ct("ok")}</b><span>Al día</span></div><div class="stat pend"><b>${ct("pend")+ct("wait")}</b><span>Pendientes</span></div><div class="stat mora"><b>${ct("mora")}</b><span>En mora</span></div></div>`:""}
  ${n?`<div class="card" style="border-color:var(--wait)"><b>Tienes ${n} ${n==1?"pago":"pagos"} por confirmar</b></div>`:""}
  ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
   return `<div class="card"><div class="row"><h3>${x.nombre}</h3>${bd(s)}</div><div class="mut">${x.tipo} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>
   <div class="mut" style="margin-top:6px">${x.inquilino_id?"Con inquilino":`Código para invitar: <span class="code">${x.codigo}</span>`}</div>
+  ${histHTML(x,G)}
   ${w?`<div class="note"><b>Pago por confirmar</b><br><span class="mut">${cop(w.valor)} por ${w.metodo=="bre-b"?"Bre-B":"transferencia"} · referencia <span class="code">${w.referencia||"sin referencia"}</span>. Revisa en tu cuenta que el dinero entró antes de confirmar.</span>${w.soporte_url?`<button class="alt full" data-sop="${w.soporte_url}">Ver comprobante</button>`:""}<button class="full" data-ok="${w.id}">Ya verifiqué, confirmar pago</button></div>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
  <div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)"><select id="t"><option>casa</option><option>apartamento</option><option>bodega</option><option>oficina</option><option>finca</option></select>
  <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">

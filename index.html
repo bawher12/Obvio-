@@ -5,6 +5,7 @@
 <title>Obvio!</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1e5eff">
 <style>
 :root{--bg:#f2f5f9;--card:#fff;--ink:#10243a;--mut:#5b6b7c;--line:#dde3ea;--pri:#1e5eff;--ok:#0b8f4d;--okbg:#dff5e8;--warn:#9a6700;--warnbg:#fdf0c9;--bad:#c62828;--badbg:#fde0e0;--wait:#4a3fb5;--waitbg:#e6e3fb}
@@ -146,7 +147,8 @@ async function tenant(msg=""){
    const u=await db.storage.from("soportes").upload(path,f);if(u.error)return tenant(u.error.message)}
   const r=await db.from("pagos").insert({inmueble_id:x.id,periodo:per(),valor:x.valor,metodo:$("m").value,referencia:ref,soporte_url:path});tenant(r.error?r.error.message:"")}}
 $("home").onclick=()=>U?boot():home();
-$("out").onclick=async()=>{try{await db.auth.signOut({scope:"local"})}catch(e){}location.href=location.pathname};
+$("out").onclick=async()=>{try{await db.auth.signOut({scope:"local"})}catch(e){}try{Object.keys(localStorage).filter(k=>k.startsWith("sb-")).forEach(k=>localStorage.removeItem(k))}catch(e){}location.href=location.pathname};
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+db.auth.onAuthStateChange(ev=>{if(ev=="SIGNED_OUT"&&U)location.href=location.pathname});
 boot();
 </script></body></html>

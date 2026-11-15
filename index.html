@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Obvio!</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#1e5eff">
+<style>
+:root{--bg:#f2f5f9;--card:#fff;--ink:#10243a;--mut:#5b6b7c;--line:#dde3ea;--pri:#1e5eff;--ok:#0b8f4d;--okbg:#dff5e8;--warn:#9a6700;--warnbg:#fdf0c9;--bad:#c62828;--badbg:#fde0e0;--wait:#4a3fb5;--waitbg:#e6e3fb}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0c1722;--card:#14222f;--ink:#e8eef5;--mut:#98a8b8;--line:#25374a;--pri:#6c96ff;--ok:#5ad08f;--okbg:#12382a;--warn:#f2c04d;--warnbg:#3a2f0e;--bad:#ff8a80;--badbg:#401a1a;--wait:#b4acff;--waitbg:#27224d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+.wrap{max-width:560px;margin:0 auto;padding:16px 16px 40px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.logo{font:800 28px system-ui,sans-serif;letter-spacing:-.02em}.logo i{font-style:normal;color:var(--pri)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mut{color:var(--mut);font-size:14px}h2,h3{margin:0 0 6px}
+.badge{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.ok{background:var(--okbg);color:var(--ok)}.pend{background:var(--warnbg);color:var(--warn)}.mora{background:var(--badbg);color:var(--bad)}.wait{background:var(--waitbg);color:var(--wait)}
+input,select{width:100%;padding:11px;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+button{font:700 15px inherit;font-family:inherit;cursor:pointer;border-radius:10px;padding:11px 16px;border:0;background:var(--pri);color:#fff}
+button.alt{background:none;color:var(--pri);border:1px solid var(--pri)}button.full{width:100%;margin-top:10px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+.err{color:var(--bad);font-size:14px;margin-top:8px;min-height:1em}
+.code{font:700 15px ui-monospace,monospace;background:var(--bg);padding:4px 8px;border-radius:6px}
+</style></head><body>
+<div class="wrap"><header><div class="logo">Obvio<i>!</i></div><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+/* 1) Pega aquí los datos de tu proyecto (Supabase > Project Settings > API). La anon key es pública: la seguridad la da RLS. */
+const SUPABASE_URL="https://nxkboifpaunyootiovis.supabase.co/rest/v1/", SUPABASE_KEY="sb_publishable_UQUO0SZmVi9BlHE3Xi48vw_HXF8FOxY";
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=i=>document.getElementById(i), app=$("app");
+const cop=n=>"$"+Number(n).toLocaleString("es-CO");
+const ST={ok:"Al día",pend:"Pendiente",mora:"En mora",wait:"Por confirmar"};
+const bd=s=>`<span class="badge ${s}">${ST[s]}</span>`;
+const per=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"};
+function estado(i,pagos){const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per());
+ if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
+let U,P;
+function auth(modo="in"){$("out").hidden=true;
+ app.innerHTML=`<div class="card"><h2>${modo=="in"?"Entrar":"Crear cuenta"}</h2>
+ ${modo=="up"?`<input id="nom" placeholder="Tu nombre" autocomplete="name"><select id="rol"><option value="propietario">Soy propietario</option><option value="inquilino">Soy inquilino</option></select>`:""}
+ <input id="em" type="email" placeholder="Correo" autocomplete="email"><input id="pw" type="password" placeholder="Contraseña (mínimo 6)" autocomplete="${modo=="in"?"current-password":"new-password"}">
+ <div class="err" id="er"></div><button class="full" id="go">${modo=="in"?"Entrar":"Crear cuenta"}</button>
+ <button class="alt full" id="sw">${modo=="in"?"No tengo cuenta":"Ya tengo cuenta"}</button></div>`;
+ $("sw").onclick=()=>auth(modo=="in"?"up":"in");
+ $("go").onclick=async()=>{const em=$("em").value.trim(),pw=$("pw").value;let r;
+  if(modo=="up"){localStorage.obvio_rol=$("rol").value;localStorage.obvio_nombre=$("nom").value.trim()||em;r=await db.auth.signUp({email:em,password:pw});
+   if(!r.error&&!r.data.session){$("er").textContent="Revisa tu correo para confirmar la cuenta y luego entra.";return}}
+  else r=await db.auth.signInWithPassword({email:em,password:pw});
+  if(r.error)$("er").textContent=r.error.message;else boot()}}
+async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return auth();
+ $("out").hidden=false;
+ P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data;
+ if(!P){const rol=localStorage.obvio_rol||"propietario",nombre=localStorage.obvio_nombre||U.email;
+  const r=await db.from("profiles").insert({id:U.id,nombre,rol});if(r.error){app.innerHTML=`<div class="card err">${r.error.message}</div>`;return}
+  P={rol,nombre,plan:"gratis"}}
+ P.rol=="propietario"?owner():tenant()}
+async function owner(msg=""){
+ const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
+ const I=i.data||[],G=g.data||[];
+ app.innerHTML=`<div class="card"><h3>Hola, ${P.nombre}</h3><div class="mut">Plan ${P.plan} · ${I.length} inmuebles</div></div>
+ ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
+  return `<div class="card"><div class="row"><h3>${x.nombre}</h3>${bd(s)}</div><div class="mut">${x.tipo} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>
+  <div class="mut" style="margin-top:6px">${x.inquilino_id?"Con inquilino":`Código para invitar: <span class="code">${x.codigo}</span>`}</div>
+  ${w?`<button class="full" data-ok="${w.id}">Confirmar pago recibido (${w.metodo})</button>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
+ <div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)"><select id="t"><option>casa</option><option>apartamento</option><option>bodega</option><option>oficina</option><option>finca</option></select>
+ <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">
+ <div class="err" id="er">${msg}</div><button class="full" id="add">Agregar</button></div>`;
+ $("add").onclick=async()=>{const r=await db.from("inmuebles").insert({propietario_id:U.id,nombre:$("n").value.trim(),tipo:$("t").value,valor:+$("v").value,dia_pago:+$("d").value});
+  owner(r.error?r.error.message:"")};
+ document.querySelectorAll("[data-ok]").forEach(b=>b.onclick=async()=>{await db.from("pagos").update({estado:"confirmado"}).eq("id",b.dataset.ok);owner()})}
+async function tenant(msg=""){
+ const [i,g]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*")]);const x=(i.data||[])[0],G=g.data||[];
+ if(!x){app.innerHTML=`<div class="card"><h2>Únete a tu inmueble</h2><p class="mut">Pídele a tu propietario el código de invitación.</p><input id="c" placeholder="Código"><div class="err" id="er">${msg}</div><button class="full" id="j">Unirme</button></div>`;
+  $("j").onclick=async()=>{const r=await db.rpc("unirse",{p_codigo:$("c").value});tenant(r.error?r.error.message:"")};return}
+ const s=estado(x,G);
+ app.innerHTML=`<div class="card" style="text-align:center"><div class="mut">${x.nombre}</div><h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
+ <div class="card"><div class="row"><span class="mut">Arriendo del mes</span><b style="font-size:22px">${cop(x.valor)}</b></div><div class="mut">Paga el día ${x.dia_pago}</div>
+ ${s=="pend"||s=="mora"?`<select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por consignación</option></select><div class="err" id="er">${msg}</div><button class="full" id="pay">Ya pagué</button>`:""}
+ ${s=="wait"?`<p class="mut">Tu propietario debe confirmar el pago.</p>`:""}${s=="ok"?`<p class="mut">Pago confirmado. Estás al día.</p>`:""}</div>`;
+ if($("pay"))$("pay").onclick=async()=>{const r=await db.from("pagos").insert({inmueble_id:x.id,periodo:per(),valor:x.valor,metodo:$("m").value});tenant(r.error?r.error.message:"")}}
+$("out").onclick=async()=>{await db.auth.signOut();boot()};
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+boot();
+</script></body></html>

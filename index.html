@@ -37,6 +37,7 @@ footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
 <script>
 /* 1) Pega aquí los datos de tu proyecto (Supabase > Project Settings > API). La anon key es pública: la seguridad la da RLS. */
 const SUPABASE_URL="https://nxkboifpaunyootiovis.supabase.co", SUPABASE_KEY="sb_publishable_UQUO0SZmVi9BlHE3Xi48vw_HXF8FOxY";
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=i=>document.getElementById(i), app=$("app");
 const cop=n=>"$"+Number(n).toLocaleString("es-CO");
 const ST={ok:"Al día",pend:"Pendiente",mora:"En mora",wait:"Por confirmar"};

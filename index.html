@@ -73,7 +73,7 @@ const b64=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(ato
 async function pushCard(){const d=document.createElement("div");d.className="card";app.appendChild(d);
  if(!("serviceWorker"in navigator&&"PushManager"in window)){d.innerHTML='<b>Avisos</b><p class="mut" style="margin:4px 0 0">Este navegador no admite notificaciones. En iPhone, instala la app desde Compartir > Agregar a inicio.</p>';return}
  const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
- if(sub&&Notification.permission=="granted"){d.innerHTML='<b>Avisos activados</b><p class="mut" style="margin:4px 0 0">Recibirás notificaciones en este dispositivo.</p>';return}
+ if(sub&&Notification.permission=="granted"){const j=sub.toJSON();await db.rpc("registrar_push",{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth});d.innerHTML='<b>Avisos activados</b><p class="mut" style="margin:4px 0 0">Recibirás notificaciones en este dispositivo.</p>';return}
  d.innerHTML='<b>Avisos en este dispositivo</b><p class="mut" style="margin:4px 0 0">Recibe una notificación aunque la app esté cerrada.</p><div class="err" id="pe"></div><button class="full" id="pb">Activar avisos</button>';
  $("pb").onclick=async()=>{try{if(await Notification.requestPermission()!="granted"){$("pe").textContent="No diste permiso para notificar.";return}
   const s=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(VAPID_PUBLIC)}),j=s.toJSON();

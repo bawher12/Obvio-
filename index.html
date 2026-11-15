@@ -25,8 +25,14 @@ button.alt{background:none;color:var(--pri);border:1px solid var(--pri)}button.f
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
 .err{color:var(--bad);font-size:14px;margin-top:8px;min-height:1em}
 .code{font:700 15px ui-monospace,monospace;background:var(--bg);padding:4px 8px;border-radius:6px}
+.hero{display:grid;gap:24px;padding:12px 0 28px}.hero h1{font-size:clamp(34px,8vw,56px);line-height:1.02;letter-spacing:-.03em;font-weight:800;margin:0 0 12px}.hero p{font-size:18px;color:var(--mut);max-width:46ch;margin:0}
+.ctas{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.sec{margin-top:36px}.sec>h2{font-size:28px;margin-bottom:14px;letter-spacing:-.02em}.n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--pri);color:#fff;font-weight:800;margin-bottom:8px}
+ul.ck{padding-left:18px;margin:8px 0 0}.live .r{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.live .r:last-child{border:0}
+@media(min-width:720px){.hero{grid-template-columns:1.2fr 1fr;align-items:center}}
+footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
 </style></head><body>
-<div class="wrap"><header><div class="logo">Obvio<i>!</i></div><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
+<div class="wrap" id="wrap"><header><button class="logo" id="home" aria-label="Ir al inicio" style="border:0;background:none;color:inherit;padding:0">Obvio<i>!</i></button><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 /* 1) Pega aquí los datos de tu proyecto (Supabase > Project Settings > API). La anon key es pública: la seguridad la da RLS. */
@@ -40,7 +46,16 @@ const per=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()
 function estado(i,pagos){const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per());
  if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
 let U,P;
-function auth(modo="in"){$("out").hidden=true;
+function home(){$("out").hidden=true;$("wrap").style.maxWidth="920px";
+ app.innerHTML=`<section class="hero"><div><h1>El arriendo, claro para los dos.</h1><p>Recordatorios, pago por Bre-B o consignación y comprobante en un solo lugar. Propietarios e inquilinos ven lo mismo: qué se paga, cuándo y si ya quedó al día. Sin comisión de pasarela.</p>
+ <div class="ctas"><button id="h-in">Entrar</button><button class="alt" id="h-up">Crear cuenta</button></div></div>
+ <div class="card live"><div class="row" style="padding-bottom:8px"><b>Noviembre</b>${bd("ok")}</div><div class="r"><span>Apto 302</span>${bd("ok")}</div><div class="r"><span>Bodega Zona Franca</span>${bd("wait")}</div><div class="r"><span>Finca El Roble</span>${bd("pend")}</div></div></section>
+ <section class="sec"><h2>Así funciona</h2><div class="grid"><div class="card"><span class="n">1</span><h3>Registra tus inmuebles</h3><p class="mut">Casas, apartamentos, bodegas, oficinas o fincas, con su valor y fecha de pago.</p></div><div class="card"><span class="n">2</span><h3>El inquilino paga</h3><p class="mut">Por Bre-B o consignación, y avisa en la app. Obvio le recuerda antes de la fecha.</p></div><div class="card"><span class="n">3</span><h3>Confirmas y listo</h3><p class="mut">Ambos ven el estado al día y el inquilino conserva su comprobante.</p></div></div></section>
+ <section class="sec"><div class="grid"><div class="card"><h3>Para propietarios</h3><ul class="ck"><li>Quién paga a tiempo, quién está en mora y quién al día</li><li>Todos tus inmuebles en un solo panel</li><li>Sin comisión de pasarela</li></ul></div><div class="card"><h3>Para inquilinos</h3><ul class="ck"><li>Recordatorio antes de cada fecha de pago</li><li>Datos de pago siempre a la mano</li><li>Comprobante cuando pagas</li></ul></div></div></section>
+ <section class="sec"><h2>Planes</h2><div class="grid"><div class="card"><h3>Gratis</h3><div class="mut">2 inmuebles</div></div><div class="card"><h3>Básico</h3><div class="mut">Hasta 5 inmuebles</div></div><div class="card"><h3>Plus</h3><div class="mut">Hasta 12 inmuebles</div></div><div class="card"><h3>Empresarial</h3><div class="mut">Inmobiliarias y administradores</div></div></div></section>
+ <footer class="f">Obvio! · Arriendos claros</footer>`;
+ $("h-in").onclick=()=>auth("in");$("h-up").onclick=()=>auth("up")}
+function auth(modo="in"){$("out").hidden=true;$("wrap").style.maxWidth="560px";
  app.innerHTML=`<div class="card"><h2>${modo=="in"?"Entrar":"Crear cuenta"}</h2>
  ${modo=="up"?`<input id="nom" placeholder="Tu nombre" autocomplete="name"><select id="rol"><option value="propietario">Soy propietario</option><option value="inquilino">Soy inquilino</option></select>`:""}
  <input id="em" type="email" placeholder="Correo" autocomplete="email"><input id="pw" type="password" placeholder="Contraseña (mínimo 6)" autocomplete="${modo=="in"?"current-password":"new-password"}">
@@ -52,7 +67,7 @@ function auth(modo="in"){$("out").hidden=true;
    if(!r.error&&!r.data.session){$("er").textContent="Revisa tu correo para confirmar la cuenta y luego entra.";return}}
   else r=await db.auth.signInWithPassword({email:em,password:pw});
   if(r.error)$("er").textContent=r.error.message;else boot()}}
-async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return auth();
+async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return home();$("wrap").style.maxWidth="560px";
  $("out").hidden=false;
  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data;
  if(!P){const rol=localStorage.obvio_rol||"propietario",nombre=localStorage.obvio_nombre||U.email;
@@ -83,6 +98,7 @@ async function tenant(msg=""){
  ${s=="pend"||s=="mora"?`<select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por consignación</option></select><div class="err" id="er">${msg}</div><button class="full" id="pay">Ya pagué</button>`:""}
  ${s=="wait"?`<p class="mut">Tu propietario debe confirmar el pago.</p>`:""}${s=="ok"?`<p class="mut">Pago confirmado. Estás al día.</p>`:""}</div>`;
  if($("pay"))$("pay").onclick=async()=>{const r=await db.from("pagos").insert({inmueble_id:x.id,periodo:per(),valor:x.valor,metodo:$("m").value});tenant(r.error?r.error.message:"")}}
+$("home").onclick=()=>U?boot():home();
 $("out").onclick=async()=>{await db.auth.signOut();boot()};
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
 boot();

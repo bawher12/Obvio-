@@ -49,7 +49,7 @@ const bd=s=>`<span class="badge ${s}">${ST[s]}</span>`;
 const per=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"};
 function estado(i,pagos){const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per());
  if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
-let U,P;
+let U,P;const POLITICA="2026-11";
 function home(){$("out").hidden=true;$("wrap").style.maxWidth="920px";
  app.innerHTML=`<section class="hero"><div><h1>El arriendo, claro para los dos.</h1><p>Recordatorios, pago por Bre-B o transferencia y comprobante en un solo lugar. Propietarios e inquilinos ven lo mismo: qué se paga, cuándo y si ya quedó al día. Sin comisión de pasarela.</p>
  <div class="ctas"><button id="h-in">Entrar</button><button class="alt" id="h-up">Crear cuenta</button></div></div>
@@ -57,17 +57,17 @@ function home(){$("out").hidden=true;$("wrap").style.maxWidth="920px";
  <section class="sec"><h2>Así funciona</h2><div class="grid"><div class="card"><span class="n">1</span><h3>Registra tus inmuebles</h3><p class="mut">Casas, apartamentos, bodegas, oficinas o fincas, con su valor y fecha de pago.</p></div><div class="card"><span class="n">2</span><h3>El inquilino paga</h3><p class="mut">Por Bre-B o transferencia, y avisa en la app. Obvio le recuerda antes de la fecha.</p></div><div class="card"><span class="n">3</span><h3>Confirmas y listo</h3><p class="mut">Ambos ven el estado al día y el inquilino conserva su comprobante.</p></div></div></section>
  <section class="sec"><div class="grid"><div class="card"><h3>Para propietarios</h3><ul class="ck"><li>Quién paga a tiempo, quién está en mora y quién al día</li><li>Todos tus inmuebles en un solo panel</li><li>Sin comisión de pasarela</li></ul></div><div class="card"><h3>Para inquilinos</h3><ul class="ck"><li>Recordatorio antes de cada fecha de pago</li><li>Datos de pago siempre a la mano</li><li>Comprobante cuando pagas</li></ul></div></div></section>
  <section class="sec"><h2>Planes</h2><div class="grid"><div class="card"><h3>Gratis</h3><div class="mut">2 inmuebles</div></div><div class="card"><h3>Básico</h3><div class="mut">Hasta 5 inmuebles</div></div><div class="card"><h3>Plus</h3><div class="mut">Hasta 12 inmuebles</div></div><div class="card"><h3>Empresarial</h3><div class="mut">Inmobiliarias y administradores</div></div></div></section>
- <footer class="f">Obvio! · Arriendos claros</footer>`;
+ <footer class="f">Obvio! · Arriendos claros · <a href="politica.html" style="color:inherit">Política de tratamiento de datos</a></footer>`;
  $("h-in").onclick=()=>auth("in");$("h-up").onclick=()=>auth("up")}
 function auth(modo="in"){$("out").hidden=true;$("wrap").style.maxWidth="560px";
  app.innerHTML=`<div class="card"><h2>${modo=="in"?"Entrar":"Crear cuenta"}</h2>
  ${modo=="up"?`<input id="nom" placeholder="Tu nombre" autocomplete="name"><select id="rol"><option value="propietario">Soy propietario</option><option value="inquilino">Soy inquilino</option></select>`:""}
  <input id="em" type="email" placeholder="Correo" autocomplete="email"><input id="pw" type="password" placeholder="Contraseña (mínimo 6)" autocomplete="${modo=="in"?"current-password":"new-password"}">
- <div class="err" id="er"></div><button class="full" id="go">${modo=="in"?"Entrar":"Crear cuenta"}</button>
+ ${modo=="up"?`<label class="mut" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="ac" style="width:auto;margin:3px 0 0"><span>Acepto la <a href="politica.html" target="_blank" rel="noopener">política de tratamiento de datos</a> y autorizo el uso de mis datos para operar Obvio!.</span></label>`:""}<div class="err" id="er"></div><button class="full" id="go">${modo=="in"?"Entrar":"Crear cuenta"}</button>
  <button class="alt full" id="sw">${modo=="in"?"No tengo cuenta":"Ya tengo cuenta"}</button></div>`;
  $("sw").onclick=()=>auth(modo=="in"?"up":"in");
  $("go").onclick=async()=>{const em=$("em").value.trim(),pw=$("pw").value;let r;
-  if(modo=="up"){localStorage.obvio_rol=$("rol").value;localStorage.obvio_nombre=$("nom").value.trim()||em;r=await db.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.href.split("#")[0],data:{rol:$("rol").value,nombre:$("nom").value.trim()||em}}});
+  if(modo=="up"){if(!$("ac").checked){$("er").textContent="Debes aceptar la política de tratamiento de datos.";return}localStorage.obvio_rol=$("rol").value;localStorage.obvio_nombre=$("nom").value.trim()||em;r=await db.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.href.split("#")[0],data:{rol:$("rol").value,nombre:$("nom").value.trim()||em,acepto:new Date().toISOString(),version:POLITICA}}});
    if(!r.error&&!r.data.session){$("er").textContent="Revisa tu correo para confirmar la cuenta y luego entra.";return}}
   else r=await db.auth.signInWithPassword({email:em,password:pw});
   if(r.error)$("er").textContent=r.error.message;else boot()}}
@@ -105,13 +105,15 @@ async function pushCard(){const d=document.createElement("div");d.className="car
 function live(){if(live.c)return;live.c=1;try{db.channel("pagos-"+Date.now()).on("postgres_changes",{event:"*",schema:"public",table:"pagos"},()=>{
  if(P.rol=="propietario"){const f=$("n");if(f&&(f.value||$("v").value||$("d").value)){$("er").textContent="Llegó un pago nuevo. Termina o borra el formulario y recarga la página.";return}owner()}
  else if(!($("f")&&$("f").files.length))tenant()}).subscribe()}catch(e){}}
+function aceptar(){app.innerHTML=`<div class="card"><h2>Tratamiento de datos</h2><p class="mut">Para seguir usando Obvio! necesitamos tu autorización para tratar tus datos personales, según nuestra <a href="politica.html" target="_blank" rel="noopener">política de tratamiento de datos</a>.</p><div class="err" id="er"></div><button class="full" id="ok">Acepto</button></div>`;
+ $("ok").onclick=async()=>{const r=await db.rpc("aceptar_datos",{p_version:POLITICA});if(r.error)$("er").textContent=r.error.message;else boot()}}
 async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return home();$("wrap").style.maxWidth="560px";
  $("out").hidden=false;
  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data;
  if(!P){const m=U.user_metadata||{},rol=m.rol||localStorage.obvio_rol||"propietario",nombre=m.nombre||localStorage.obvio_nombre||U.email;
-  const r=await db.from("profiles").insert({id:U.id,nombre,rol});if(r.error){app.innerHTML=`<div class="card err">${r.error.message}</div>`;return}
-  P={rol,nombre,plan:"gratis"}}
- live();P.rol=="propietario"?owner():tenant()}
+  const r=await db.from("profiles").insert({id:U.id,nombre,rol,email:U.email,acepto_datos_en:m.acepto||null,version_politica:m.version||null});if(r.error){app.innerHTML=`<div class="card err">${r.error.message}</div>`;return}
+  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data}
+ if(!P.acepto_datos_en)return aceptar();live();P.rol=="propietario"?owner():tenant()}
 async function owner(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
  const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,E=I.map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;

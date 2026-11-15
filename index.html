@@ -68,7 +68,7 @@ function auth(modo="in"){$("out").hidden=true;$("wrap").style.maxWidth="560px";
    if(!r.error&&!r.data.session){$("er").textContent="Revisa tu correo para confirmar la cuenta y luego entra.";return}}
   else r=await db.auth.signInWithPassword({email:em,password:pw});
   if(r.error)$("er").textContent=r.error.message;else boot()}}
-const VAPID_PUBLIC="PEGA_AQUI_TU_CLAVE_PUBLICA_VAPID";
+const VAPID_PUBLIC="BH7vsfO0fOWgCEEqgI872EWPpk-gIDPrhbLs26002M_HpT109l4z_lMdDHYyrnI3K8jVm_ZCVrIbs7-LPlNfXBA";
 const b64=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(t+"=".repeat((4-t.length%4)%4)),c=>c.charCodeAt(0))};
 async function pushCard(){const d=document.createElement("div");d.className="card";app.appendChild(d);
  if(!("serviceWorker"in navigator&&"PushManager"in window)){d.innerHTML='<b>Avisos</b><p class="mut" style="margin:4px 0 0">Este navegador no admite notificaciones. En iPhone, instala la app desde Compartir > Agregar a inicio.</p>';return}

@@ -50,7 +50,9 @@ const bd=s=>`<span class="badge ${s}">${ST[s]}</span>`;
 const per=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"};
 function estado(i,pagos){const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per());
  if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
-let U,P,TAB="inm",PAY=null;const POLITICA="2026-11";
+let U,P,TAB="inm",PAY=null,ADDING=false;const POLITICA="2026-11";
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const detalle=x=>{const a=[];if(x.tipo=="apartamento"){if(x.torre)a.push("Torre "+esc(x.torre));if(x.numero)a.push("Apto "+esc(x.numero))}if(x.direccion)a.push(esc(x.direccion));return a.length?`<div class="mut">${a.join(" · ")}</div>`:""};
 const fecha=d=>new Date(d+"T12:00:00").toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
 function home(){$("out").hidden=true;$("wrap").style.maxWidth="920px";
  app.innerHTML=`<section class="hero"><div><h1>El arriendo, claro para los dos.</h1><p>Recordatorios, pago por Bre-B o transferencia y comprobante en un solo lugar. Propietarios e inquilinos ven lo mismo: qué se paga, cuándo y si ya quedó al día. Sin comisión de pasarela.</p>
@@ -118,7 +120,7 @@ async function boot(){const {data:{session}}=await db.auth.getSession();U=sessio
  if(!P.acepto_datos_en)return aceptar();live();P.rol=="propietario"?owner():tenant()}
 
 const tabs=()=>`<div class="tabs"><button data-tab="inm" aria-pressed="${TAB=="inm"}">Inmuebles</button><button data-tab="plan" aria-pressed="${TAB=="plan"}">Mi plan</button><button data-tab="cuenta" aria-pressed="${TAB=="cuenta"}">Cuenta</button>${P.es_admin?`<button data-tab="admin" aria-pressed="${TAB=="admin"}">Admin</button>`:""}</div>`;
-const bindTabs=()=>document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;PAY=null;owner()});
+const bindTabs=()=>document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;PAY=null;ADDING=false;owner()});
 async function owner(msg=""){
  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data||P;
  if(P.estado=="suspendido"){app.innerHTML='<div class="card"><h2>Cuenta suspendida</h2><p class="mut">Contacta al administrador de Obvio!.</p></div>';return}
@@ -130,15 +132,15 @@ async function owner(msg=""){
 async function adminUI(msg=""){
  const [ow,sp]=await Promise.all([db.rpc("admin_propietarios"),db.from("suscripcion_pagos").select("*").order("created_at",{ascending:false})]);
  if(ow.error){app.innerHTML='<div class="card err">'+ow.error.message+'</div>';app.insertAdjacentHTML("afterbegin",tabs());bindTabs();return}
- const O=ow.data||[],SP=sp.data||[],nom=id=>{const o=O.find(x=>x.uid==id);return o?o.nombre+" · "+(o.email||""):"Propietario eliminado"};
+ const O=ow.data||[],SP=sp.data||[],nom=id=>{const o=O.find(x=>x.uid==id);return o?esc(o.nombre)+" · "+esc(o.email||""):"Propietario eliminado"};
  const pend=SP.filter(x=>x.estado=="por_confirmar"),sinf=SP.filter(x=>x.estado=="confirmado"&&!x.factura_url);
  const BAD='style="flex:1;color:var(--bad);border-color:var(--bad)"';
  app.innerHTML=`<div class="err" id="er">${msg}</div>
  <div class="card"><h3>Pagos de plan por confirmar (${pend.length})</h3>${pend.map(x=>`<div class="note"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)} · ${x.metodo} · ${new Date(x.created_at).toLocaleDateString("es-CO")}</span>
-  ${x.soporte_url?`<button class="alt full" data-vs="${x.soporte_url}">Ver comprobante</button>`:""}<div class="row" style="gap:8px;margin-top:8px"><button style="flex:1" data-ap="${x.id}">Ya verifiqué, confirmar</button><button class="alt" ${BAD} data-rp="${x.id}">Rechazar</button></div></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay pagos pendientes.</p>'}</div>
+  ${x.soporte_url?`<button class="alt full" data-vs="${esc(x.soporte_url)}">Ver comprobante</button>`:""}<div class="row" style="gap:8px;margin-top:8px"><button style="flex:1" data-ap="${x.id}">Ya verifiqué, confirmar</button><button class="alt" ${BAD} data-rp="${x.id}">Rechazar</button></div></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay pagos pendientes.</p>'}</div>
  <div class="card"><h3>Facturas por subir (${sinf.length})</h3>${sinf.map(x=>`<div class="note" data-ow="${x.propietario_id}"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)}</span><input type="file" accept="application/pdf"><button class="full" data-sf="${x.id}">Subir factura</button></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay facturas pendientes.</p>'}</div>
- <div class="card"><h3>Propietarios (${O.length})</h3>${O.map(o=>`<details style="margin-top:12px"><summary style="cursor:pointer"><b>${o.nombre}</b> <span class="badge ${o.plan=="gratis"?"wait":"ok"}">${o.plan}</span>${o.estado=="suspendido"?' <span class="badge mora">Suspendido</span>':""}</summary>
-  <div class="mut" style="margin-top:6px">${o.email||""}<br>${o.n_activos} de ${o.n_inmuebles} ${o.n_inmuebles==1?"inmueble activo":"inmuebles activos"}${o.plan_vence?" · vence "+fecha(o.plan_vence):""}</div>
+ <div class="card"><h3>Propietarios (${O.length})</h3>${O.map(o=>`<details style="margin-top:12px"><summary style="cursor:pointer"><b>${esc(o.nombre)}</b> <span class="badge ${o.plan=="gratis"?"wait":"ok"}">${o.plan}</span>${o.estado=="suspendido"?' <span class="badge mora">Suspendido</span>':""}</summary>
+  <div class="mut" style="margin-top:6px">${esc(o.email||"")}<br>${o.n_activos} de ${o.n_inmuebles} ${o.n_inmuebles==1?"inmueble activo":"inmuebles activos"}${o.plan_vence?" · vence "+fecha(o.plan_vence):""}</div>
   <select><option value="basico">Básico</option><option value="plus">Plus</option><option value="empresarial">Empresarial</option><option value="gratis">Gratis</option></select>
   <label class="mut" style="display:block;margin-top:8px">Vence (opcional)</label><input type="date">
   <button class="full" data-sp="${o.uid}">Activar este plan</button>
@@ -161,7 +163,7 @@ async function adminUI(msg=""){
 async function elegir(){
  const [i,pl]=await Promise.all([db.from("inmuebles").select("id,nombre,tipo,valor").order("created_at"),db.from("planes").select("limite").eq("id",P.plan).maybeSingle()]);
  const I=i.data||[],lim=pl.data?pl.data.limite:2;
- app.innerHTML=`<div class="card"><h2>Elige tus inmuebles</h2><p class="mut">Tu plan permite ${lim} inmuebles activos. Elige cuáles dejas activos; los demás quedan archivados y se reactivan si vuelves a subir de plan.</p>${I.map((x,k)=>`<label class="row" style="margin-top:10px"><span><b>${x.nombre}</b><br><span class="mut">${x.tipo} · ${cop(x.valor)}</span></span><input type="checkbox" class="sel" value="${x.id}" style="width:auto" ${k<lim?"checked":""}></label>`).join("")}<div class="err" id="er"></div><button class="full" id="sv">Guardar selección</button></div>`;
+ app.innerHTML=`<div class="card"><h2>Elige tus inmuebles</h2><p class="mut">Tu plan permite ${lim} inmuebles activos. Elige cuáles dejas activos; los demás quedan archivados y se reactivan si vuelves a subir de plan.</p>${I.map((x,k)=>`<label class="row" style="margin-top:10px"><span><b>${esc(x.nombre)}</b><br><span class="mut">${esc(x.tipo)} · ${cop(x.valor)}</span></span><input type="checkbox" class="sel" value="${x.id}" style="width:auto" ${k<lim?"checked":""}></label>`).join("")}<div class="err" id="er"></div><button class="full" id="sv">Guardar selección</button></div>`;
  $("sv").onclick=async()=>{const ids=[...document.querySelectorAll(".sel:checked")].map(c=>c.value);if(ids.length>lim){$("er").textContent="Máximo "+lim+" inmuebles activos";return}
   const r=await db.rpc("elegir_inmuebles",{p_ids:ids});if(r.error)$("er").textContent=r.error.message;else owner()}}
 async function planUI(msg=""){
@@ -175,7 +177,7 @@ async function planUI(msg=""){
  let form="";
  if(PAY){const p=PL.find(x=>x.id==PAY.plan),v=PAY.periodo=="anual"?p.precio_anual:p.precio_mensual;
   form=`<div class="card" style="border-color:var(--pri)"><h3>Pagar plan ${p.nombre} ${PAY.periodo}</h3><div class="row"><span class="mut">Valor</span><b style="font-size:22px">${cop(v)}</b></div>
-  <div class="note">${lib?`Paga por <b>Bre-B</b> a la llave <span class="code">${C.breb_llave}</span> o por transferencia bancaria, y sube el comprobante.`:"El administrador aún no ha configurado los datos de pago."}</div>
+  <div class="note">${lib?`Paga por <b>Bre-B</b> a la llave <span class="code">${esc(C.breb_llave)}</span> o por transferencia bancaria, y sube el comprobante.`:"El administrador aún no ha configurado los datos de pago."}</div>
   <select id="mt"><option value="bre-b">Pagué por Bre-B</option><option value="transferencia">Pagué por transferencia bancaria</option></select>
   <label class="mut" style="display:block;margin-top:10px">Comprobante</label><input id="cp" type="file" accept="image/*,application/pdf">
   <div class="err" id="er">${msg}</div><button class="full" id="ps" ${lib?"":"disabled"}>Ya hice el pago</button><button class="alt full" id="px">Cancelar</button></div>`}
@@ -198,8 +200,8 @@ async function planUI(msg=""){
 async function cuentaUI(msg=""){
  const sp=(await db.from("suscripcion_pagos").select("*").order("created_at",{ascending:false})).data||[];
  const ET={por_confirmar:["wait","Por confirmar"],confirmado:["ok","Confirmado"],rechazado:["mora","Rechazado"]};
- app.innerHTML=`<div class="card"><h3>${P.nombre}</h3><div class="mut">${P.email||U.email}</div><p class="mut" style="margin:8px 0 0">Política de datos aceptada${P.acepto_datos_en?" el "+new Date(P.acepto_datos_en).toLocaleDateString("es-CO"):""} · <a href="politica.html" target="_blank" rel="noopener">ver política</a></p></div>
- <div class="card"><h3>Pagos y facturas</h3>${sp.length?sp.map(x=>`<div class="row" style="margin-top:10px"><span>${x.plan} ${x.periodo}<br><span class="mut">${cop(x.valor)} · ${new Date(x.created_at).toLocaleDateString("es-CO")}</span></span><span style="text-align:right"><span class="badge ${ET[x.estado][0]}">${ET[x.estado][1]}</span>${x.factura_url?`<br><button class="alt" style="margin-top:6px" data-fac="${x.factura_url}">Descargar factura</button>`:""}</span></div>`).join(""):'<p class="mut" style="margin:6px 0 0">Aún no tienes pagos de plan.</p>'}</div>
+ app.innerHTML=`<div class="card"><h3>${esc(P.nombre)}</h3><div class="mut">${esc(P.email||U.email)}</div><p class="mut" style="margin:8px 0 0">Política de datos aceptada${P.acepto_datos_en?" el "+new Date(P.acepto_datos_en).toLocaleDateString("es-CO"):""} · <a href="politica.html" target="_blank" rel="noopener">ver política</a></p></div>
+ <div class="card"><h3>Pagos y facturas</h3>${sp.length?sp.map(x=>`<div class="row" style="margin-top:10px"><span>${x.plan} ${x.periodo}<br><span class="mut">${cop(x.valor)} · ${new Date(x.created_at).toLocaleDateString("es-CO")}</span></span><span style="text-align:right"><span class="badge ${ET[x.estado][0]}">${ET[x.estado][1]}</span>${x.factura_url?`<br><button class="alt" style="margin-top:6px" data-fac="${esc(x.factura_url)}">Descargar factura</button>`:""}</span></div>`).join(""):'<p class="mut" style="margin:6px 0 0">Aún no tienes pagos de plan.</p>'}</div>
  ${P.plan!="gratis"?'<div class="card"><h3>Cancelar mi plan</h3><p class="mut">Pasas al plan Gratis de inmediato. Si tienes más inmuebles de los que permite, elegirás cuáles dejas activos.</p><button class="alt full" id="cp">Cancelar mi plan</button></div>':""}
  <div class="card"><h3>Eliminar mi cuenta</h3><p class="mut">Borra tu cuenta, tus inmuebles y tus pagos de forma definitiva.</p><div class="err" id="er">${msg}</div><button class="alt full" id="dl" style="color:var(--bad);border-color:var(--bad)">Eliminar mi cuenta</button></div>`;
  app.insertAdjacentHTML("afterbegin",tabs());bindTabs();
@@ -213,29 +215,38 @@ function eliminarCard(){const d=document.createElement("div");d.className="card"
 async function inmuebles(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
  const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,ia=I.filter(x=>x.activo!==false).length,E=I.filter(x=>x.activo!==false).map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;
- app.innerHTML=`<div class="card"><h3>Hola, ${P.nombre}</h3><div class="mut">Plan ${P.plan} · ${ia} ${ia==1?"inmueble activo":"inmuebles activos"}</div></div>
+ app.innerHTML=`<div class="card"><h3>Hola, ${esc(P.nombre)}</h3><div class="mut">Plan ${P.plan} · ${ia} ${ia==1?"inmueble activo":"inmuebles activos"}</div></div>
  ${I.length?`<div class="stats"><div class="stat ok"><b>${ct("ok")}</b><span>Al día</span></div><div class="stat pend"><b>${ct("pend")+ct("wait")}</b><span>Pendientes</span></div><div class="stat mora"><b>${ct("mora")}</b><span>En mora</span></div></div>`:""}
  ${n?`<div class="card" style="border-color:var(--wait)"><b>Tienes ${n} ${n==1?"pago":"pagos"} por confirmar</b></div>`:""}
  ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
-  return `<div class="card"><div class="row"><h3>${x.nombre}</h3>${x.activo===false?'<span class="badge wait">Archivado</span>':bd(s)}</div><div class="mut">${x.tipo} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>
-  <div class="mut" style="margin-top:6px">${x.inquilino_id?"Con inquilino":`Código para invitar: <span class="code">${x.codigo}</span>`}</div>
+  return `<div class="card"><div class="row"><h3>${esc(x.nombre)}</h3>${x.activo===false?'<span class="badge wait">Archivado</span>':bd(s)}</div><div class="mut">${esc(x.tipo)} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>${detalle(x)}
+  <div class="mut" style="margin-top:6px">${x.inquilino_id?"Con inquilino":`Código para invitar: <span class="code">${esc(x.codigo)}</span>`}</div>
   ${histHTML(x,G)}
-  ${w?`<div class="note"><b>Pago por confirmar</b><br><span class="mut">${cop(w.valor)} por ${w.metodo=="bre-b"?"Bre-B":"transferencia"} · referencia <span class="code">${w.referencia||"sin referencia"}</span>. Revisa en tu cuenta que el dinero entró antes de confirmar.</span>${w.soporte_url?`<button class="alt full" data-sop="${w.soporte_url}">Ver comprobante</button>`:""}<button class="full" data-ok="${w.id}">Ya verifiqué, confirmar pago</button></div>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
- <div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)"><select id="t"><option>casa</option><option>apartamento</option><option>bodega</option><option>oficina</option><option>finca</option></select>
+  ${w?`<div class="note"><b>Pago por confirmar</b><br><span class="mut">${cop(w.valor)} por ${w.metodo=="bre-b"?"Bre-B":"transferencia"} · referencia <span class="code">${esc(w.referencia||"sin referencia")}</span>. Revisa en tu cuenta que el dinero entró antes de confirmar.</span>${w.soporte_url?`<button class="alt full" data-sop="${esc(w.soporte_url)}">Ver comprobante</button>`:""}<button class="full" data-ok="${w.id}">Ya verifiqué, confirmar pago</button></div>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
+ ${ADDING?`<div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)" autocomplete="off">
+ <select id="t"><option>casa</option><option>apartamento</option><option>bodega</option><option>oficina</option><option>finca</option></select>
+ <div id="xa" hidden><input id="to" placeholder="Torre (opcional)" autocomplete="off"><input id="nu" placeholder="Número de apartamento (opcional)" autocomplete="off"><input id="dc" placeholder="Dirección del conjunto (opcional)" autocomplete="off"></div>
+ <div id="xo"><input id="di" placeholder="Dirección (opcional)" autocomplete="off"></div>
  <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">
- <div class="err" id="er">${msg}</div><button class="full" id="add">Agregar</button></div>`;
+ <div class="err" id="er">${msg}</div><button class="full" id="add">Guardar inmueble</button><button class="alt full" id="cn">Cancelar</button></div>`:`<button class="full" id="nuevo">+ Agregar inmueble</button>`}`;
  pushCard();
- $("add").onclick=async()=>{const r=await db.from("inmuebles").insert({propietario_id:U.id,nombre:$("n").value.trim(),tipo:$("t").value,valor:+$("v").value,dia_pago:+$("d").value});
-  owner(r.error?r.error.message:"")};
+ if($("nuevo"))$("nuevo").onclick=()=>{ADDING=true;owner()};
+ if($("cn"))$("cn").onclick=()=>{ADDING=false;owner()};
+ if($("add")){const tp=()=>{const a=$("t").value=="apartamento";$("xa").hidden=!a;$("xo").hidden=a};$("t").onchange=tp;tp();$("n").focus();
+  $("add").onclick=async()=>{const t=$("t").value,ap=t=="apartamento",tor=$("to").value.trim()||null,nu=$("nu").value.trim()||null,dir=(ap?$("dc"):$("di")).value.trim()||null,er=m=>{$("er").textContent=m};
+   const nombre=$("n").value.trim()||(ap?(nu?"Apto "+nu+(tor?" · Torre "+tor:""):""):(dir?t+" "+dir:""));
+   if(!nombre)return er("Ponle un nombre al inmueble");if(!(+$("v").value>0))return er("Escribe el valor del arriendo");const dd=+$("d").value;if(!(dd>=1&&dd<=28))return er("El día de pago debe estar entre 1 y 28");
+   $("add").disabled=true;const r=await db.from("inmuebles").insert({propietario_id:U.id,nombre,tipo:t,valor:+$("v").value,dia_pago:dd,torre:ap?tor:null,numero:ap?nu:null,direccion:dir});
+   if(r.error){$("add").disabled=false;return er(r.error.message)}ADDING=false;owner()}}
  document.querySelectorAll("[data-ok]").forEach(b=>b.onclick=async()=>{await db.from("pagos").update({estado:"confirmado",confirmado_en:new Date().toISOString()}).eq("id",b.dataset.ok);owner()});
  document.querySelectorAll("[data-sop]").forEach(b=>b.onclick=async()=>{const r=await db.storage.from("soportes").createSignedUrl(b.dataset.sop,300);if(r.data)window.open(r.data.signedUrl,"_blank");else $("er").textContent=r.error.message})}
 async function tenant(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*")]);const x=(i.data||[])[0],G=g.data||[];
  if(!x){app.innerHTML=`<div class="card"><h2>Únete a tu inmueble</h2><p class="mut">Pídele a tu propietario el código de invitación.</p><input id="c" placeholder="Código"><div class="err" id="er">${msg}</div><button class="full" id="j">Unirme</button></div>`;
   $("j").onclick=async()=>{const r=await db.rpc("unirse",{p_codigo:$("c").value});tenant(r.error?r.error.message:"")};return}
- if(x.activo===false){app.innerHTML=`<div class="card"><h2>${x.nombre}</h2><p class="mut">Este inmueble está inactivo en Obvio!. Habla con tu propietario.</p></div>`;pushCard().then(eliminarCard);return}
+ if(x.activo===false){app.innerHTML=`<div class="card"><h2>${esc(x.nombre)}</h2><p class="mut">Este inmueble está inactivo en Obvio!. Habla con tu propietario.</p></div>`;pushCard().then(eliminarCard);return}
  const s=estado(x,G),ref="OB-"+x.codigo.slice(0,4).toUpperCase()+"-"+per().slice(5,7),conf=G.filter(p=>p.inmueble_id==x.id&&p.estado=="confirmado").sort((a,b)=>b.periodo.localeCompare(a.periodo));
- app.innerHTML=`<div class="card" style="text-align:center"><div class="mut">${x.nombre}</div><h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
+ app.innerHTML=`<div class="card" style="text-align:center"><div class="mut">${esc(x.nombre)}</div>${detalle(x)}<h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
  <div class="card"><div class="row"><span class="mut">Arriendo del mes</span><b style="font-size:22px">${cop(x.valor)}</b></div><div class="mut">Paga el día ${x.dia_pago}</div>
  ${s=="pend"||s=="mora"?`<div class="note"><b>Referencia de tu pago</b><br><span class="code">${ref}</span><br><span class="mut">Escríbela en la descripción de la transferencia.</span></div><select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por transferencia bancaria</option></select><div class="err" id="er">${msg}</div><label class="mut" style="display:block;margin-top:10px">Comprobante (opcional)</label><input id="f" type="file" accept="image/*,application/pdf"><button class="full" id="pay">Ya hice el pago</button>`:""}
  ${s=="wait"?`<p class="mut">Tu propietario debe confirmar el pago.</p>`:""}${s=="ok"?`<p class="mut">Pago confirmado. Estás al día.</p>`:""}</div>

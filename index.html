@@ -106,7 +106,7 @@ async function pushCard(){const d=document.createElement("div");d.className="car
   d.innerHTML='<b>Avisos activados</b><p class="mut" style="margin:4px 0 0">Recibirás notificaciones en este dispositivo.</p>'}catch(e){$("pe").textContent=e.message}}}
 function live(){if(live.c)return;live.c=1;try{db.channel("pagos-"+Date.now()).on("postgres_changes",{event:"*",schema:"public",table:"pagos"},()=>{
  if(P.rol=="propietario"){const f=$("n");if(f&&(f.value||$("v").value||$("d").value)){$("er").textContent="Llegó un pago nuevo. Termina o borra el formulario y recarga la página.";return}owner()}
- else if(!($("f")&&$("f").files.length))tenant()}).on("postgres_changes",{event:"*",schema:"public",table:"suscripcion_pagos"},()=>{if(P&&P.rol=="propietario"&&(TAB=="plan"||TAB=="cuenta"))owner()}).subscribe()}catch(e){}}
+ else if(!($("f")&&$("f").files.length))tenant()}).on("postgres_changes",{event:"*",schema:"public",table:"suscripcion_pagos"},()=>{if(P&&P.rol=="propietario"&&(TAB=="plan"||TAB=="cuenta"||TAB=="admin"))owner()}).subscribe()}catch(e){}}
 function aceptar(){app.innerHTML=`<div class="card"><h2>Tratamiento de datos</h2><p class="mut">Para seguir usando Obvio! necesitamos tu autorización para tratar tus datos personales, según nuestra <a href="politica.html" target="_blank" rel="noopener">política de tratamiento de datos</a>.</p><div class="err" id="er"></div><button class="full" id="ok">Acepto</button></div>`;
  $("ok").onclick=async()=>{const r=await db.rpc("aceptar_datos",{p_version:POLITICA});if(r.error)$("er").textContent=r.error.message;else boot()}}
 async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return home();$("wrap").style.maxWidth="560px";
@@ -117,7 +117,7 @@ async function boot(){const {data:{session}}=await db.auth.getSession();U=sessio
   P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data}
  if(!P.acepto_datos_en)return aceptar();live();P.rol=="propietario"?owner():tenant()}
 
-const tabs=()=>`<div class="tabs"><button data-tab="inm" aria-pressed="${TAB=="inm"}">Inmuebles</button><button data-tab="plan" aria-pressed="${TAB=="plan"}">Mi plan</button><button data-tab="cuenta" aria-pressed="${TAB=="cuenta"}">Cuenta</button></div>`;
+const tabs=()=>`<div class="tabs"><button data-tab="inm" aria-pressed="${TAB=="inm"}">Inmuebles</button><button data-tab="plan" aria-pressed="${TAB=="plan"}">Mi plan</button><button data-tab="cuenta" aria-pressed="${TAB=="cuenta"}">Cuenta</button>${P.es_admin?`<button data-tab="admin" aria-pressed="${TAB=="admin"}">Admin</button>`:""}</div>`;
 const bindTabs=()=>document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;PAY=null;owner()});
 async function owner(msg=""){
  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data||P;
@@ -125,7 +125,39 @@ async function owner(msg=""){
  if(P.debe_elegir)return elegir();
  if(TAB=="plan")return planUI();
  if(TAB=="cuenta")return cuentaUI();
+ if(TAB=="admin"&&P.es_admin)return adminUI();
  await inmuebles(msg);app.insertAdjacentHTML("afterbegin",tabs());bindTabs()}
+async function adminUI(msg=""){
+ const [ow,sp]=await Promise.all([db.rpc("admin_propietarios"),db.from("suscripcion_pagos").select("*").order("created_at",{ascending:false})]);
+ if(ow.error){app.innerHTML='<div class="card err">'+ow.error.message+'</div>';app.insertAdjacentHTML("afterbegin",tabs());bindTabs();return}
+ const O=ow.data||[],SP=sp.data||[],nom=id=>{const o=O.find(x=>x.uid==id);return o?o.nombre+" · "+(o.email||""):"Propietario eliminado"};
+ const pend=SP.filter(x=>x.estado=="por_confirmar"),sinf=SP.filter(x=>x.estado=="confirmado"&&!x.factura_url);
+ const BAD='style="flex:1;color:var(--bad);border-color:var(--bad)"';
+ app.innerHTML=`<div class="err" id="er">${msg}</div>
+ <div class="card"><h3>Pagos de plan por confirmar (${pend.length})</h3>${pend.map(x=>`<div class="note"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)} · ${x.metodo} · ${new Date(x.created_at).toLocaleDateString("es-CO")}</span>
+  ${x.soporte_url?`<button class="alt full" data-vs="${x.soporte_url}">Ver comprobante</button>`:""}<div class="row" style="gap:8px;margin-top:8px"><button style="flex:1" data-ap="${x.id}">Ya verifiqué, confirmar</button><button class="alt" ${BAD} data-rp="${x.id}">Rechazar</button></div></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay pagos pendientes.</p>'}</div>
+ <div class="card"><h3>Facturas por subir (${sinf.length})</h3>${sinf.map(x=>`<div class="note" data-ow="${x.propietario_id}"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)}</span><input type="file" accept="application/pdf"><button class="full" data-sf="${x.id}">Subir factura</button></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay facturas pendientes.</p>'}</div>
+ <div class="card"><h3>Propietarios (${O.length})</h3>${O.map(o=>`<details style="margin-top:12px"><summary style="cursor:pointer"><b>${o.nombre}</b> <span class="badge ${o.plan=="gratis"?"wait":"ok"}">${o.plan}</span>${o.estado=="suspendido"?' <span class="badge mora">Suspendido</span>':""}</summary>
+  <div class="mut" style="margin-top:6px">${o.email||""}<br>${o.n_activos} de ${o.n_inmuebles} inmuebles activos${o.plan_vence?" · vence "+fecha(o.plan_vence):""}</div>
+  <select><option value="basico">Básico</option><option value="plus">Plus</option><option value="empresarial">Empresarial</option><option value="gratis">Gratis</option></select>
+  <label class="mut" style="display:block;margin-top:8px">Vence (opcional)</label><input type="date">
+  <button class="full" data-sp="${o.uid}">Activar este plan</button>
+  <div class="row" style="gap:8px;margin-top:8px"><button class="alt" style="flex:1" data-cx="${o.uid}">Cancelar plan</button><button class="alt" style="flex:1" data-st="${o.uid}|${o.estado=="activo"?"suspendido":"activo"}">${o.estado=="activo"?"Suspender":"Reactivar"}</button></div>
+  <button class="alt full" ${BAD.replace("flex:1;","")} data-el="${o.uid}">Eliminar cuenta</button></details>`).join("")||'<p class="mut" style="margin:6px 0 0">Aún no hay propietarios.</p>'}</div>`;
+ app.insertAdjacentHTML("afterbegin",tabs());bindTabs();
+ const run=async p=>{const r=await p;adminUI(r&&r.error?(r.error.message||"No se pudo completar la acción"):"")};
+ const url=async(bk,path)=>{const r=await db.storage.from(bk).createSignedUrl(path,300);if(r.data)window.open(r.data.signedUrl,"_blank");else $("er").textContent=r.error.message};
+ document.querySelectorAll("[data-vs]").forEach(b=>b.onclick=()=>url("planes",b.dataset.vs));
+ document.querySelectorAll("[data-ap]").forEach(b=>b.onclick=()=>{b.disabled=true;run(db.rpc("admin_confirmar_pago",{p_id:b.dataset.ap}))});
+ document.querySelectorAll("[data-rp]").forEach(b=>b.onclick=()=>{if(confirm("¿Rechazar este pago?"))run(db.rpc("admin_rechazar_pago",{p_id:b.dataset.rp}))});
+ document.querySelectorAll("[data-sf]").forEach(b=>b.onclick=async()=>{const box=b.closest(".note"),f=box.querySelector("input").files[0];if(!f){$("er").textContent="Elige el PDF de la factura";return}
+  b.disabled=true;const path=box.dataset.ow+"/"+b.dataset.sf+".pdf",u=await db.storage.from("facturas").upload(path,f,{upsert:true});
+  if(u.error){adminUI(u.error.message);return}run(db.rpc("admin_adjuntar_factura",{p_id:b.dataset.sf,p_path:path}))});
+ document.querySelectorAll("[data-sp]").forEach(b=>b.onclick=()=>{const d=b.closest("details");run(db.rpc("admin_set_plan",{p_user:b.dataset.sp,p_plan:d.querySelector("select").value,p_vence:d.querySelector("input[type=date]").value||null}))});
+ document.querySelectorAll("[data-cx]").forEach(b=>b.onclick=()=>{if(confirm("¿Cancelar el plan de este propietario? Pasa a Gratis ahora."))run(db.rpc("admin_cancelar_plan",{p_user:b.dataset.cx}))});
+ document.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{const [u,e]=b.dataset.st.split("|");run(db.rpc("admin_set_estado",{p_user:u,p_estado:e}))});
+ document.querySelectorAll("[data-el]").forEach(b=>b.onclick=async()=>{if(prompt("Esto borra la cuenta y todos sus datos. Escribe ELIMINAR para confirmar.")!=="ELIMINAR")return;
+  const r=await db.functions.invoke("cuentas",{body:{accion:"admin_eliminar",userId:b.dataset.el}});adminUI(r.error?"No se pudo eliminar la cuenta":"")})}
 async function elegir(){
  const [i,pl]=await Promise.all([db.from("inmuebles").select("id,nombre,tipo,valor").order("created_at"),db.from("planes").select("limite").eq("id",P.plan).maybeSingle()]);
  const I=i.data||[],lim=pl.data?pl.data.limite:2;

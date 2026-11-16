@@ -32,25 +32,26 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 ul.ck{padding-left:18px;margin:8px 0 0}.live .r{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.live .r:last-child{border:0}
 @media(min-width:720px){.hero{grid-template-columns:1.2fr 1fr;align-items:center}}
 footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.stat{border-radius:12px;padding:12px;text-align:center}.stat b{display:block;font-size:26px}.stat span{font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.stat{border-radius:12px;padding:12px 6px;text-align:center}.stat b{display:block;font-size:26px}.stat span{font-size:12px}.vac{background:var(--line);color:var(--mut)}
 .tabs{display:flex;gap:6px;margin-bottom:14px}.tabs button{flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line);padding:10px 6px}.tabs button[aria-pressed=true]{border-color:var(--pri);color:var(--pri)}
 .note{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
 </style></head><body>
 <div class="wrap" id="wrap"><header><button class="logo" id="home" aria-label="Ir al inicio" style="border:0;background:none;color:inherit;padding:0">Obvio<i>!</i></button><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 /* 1) Pega aquí los datos de tu proyecto (Supabase > Project Settings > API). La anon key es pública: la seguridad la da RLS. */
 const SUPABASE_URL="https://nxkboifpaunyootiovis.supabase.co", SUPABASE_KEY="sb_publishable_UQUO0SZmVi9BlHE3Xi48vw_HXF8FOxY";
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=i=>document.getElementById(i), app=$("app");
 const cop=n=>"$"+Number(n).toLocaleString("es-CO");
-const ST={ok:"Al día",pend:"Pendiente",mora:"En mora",wait:"Por confirmar"};
+const ST={vac:"Desocupado",ok:"Al día",pend:"Pendiente",mora:"En mora",wait:"Por confirmar"};
 const bd=s=>`<span class="badge ${s}">${ST[s]}</span>`;
 const per=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"};
-function estado(i,pagos){const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per());
+function estado(i,pagos){if(!i.inquilino_id)return "vac";const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per()&&x.inquilino_id==i.inquilino_id);
  if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
-let U,P,TAB="inm",PAY=null,ADDING=false;const POLITICA="2026-11";
+let U,P,TAB="inm",PAY=null,ADDING=false,ADMTAB="op",RF=null;const POLITICA="2026-11";
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const detalle=x=>{const a=[];if(x.tipo=="apartamento"){if(x.torre)a.push("Torre "+esc(x.torre));if(x.numero)a.push("Apto "+esc(x.numero))}if(x.direccion)a.push(esc(x.direccion));return a.length?`<div class="mut">${a.join(" · ")}</div>`:""};
 const fecha=d=>new Date(d+"T12:00:00").toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
@@ -86,9 +87,9 @@ function pdf(x,p){const {jsPDF}=window.jspdf,d=new jsPDF(),L=20;
  d.setDrawColor(221,227,234);d.line(L,y,190,y);
  d.setFontSize(9);d.setTextColor(90,107,124);d.text("Pago registrado por el inquilino y confirmado por el propietario en Obvio!.",L,y+10);
  d.save("comprobante-"+p.periodo.slice(0,7)+".pdf")}
-function hist(x,G){const out=[],hoy=new Date(),c0=new Date(x.created_at),ini=new Date(c0.getFullYear(),c0.getMonth(),1);
+function hist(x,G){const out=[],hoy=new Date(),c0=new Date(x.ocupado_desde?x.ocupado_desde+"T12:00:00":x.created_at),ini=new Date(c0.getFullYear(),c0.getMonth(),1);
  for(let k=0;k<6;k++){const d=new Date(hoy.getFullYear(),hoy.getMonth()-k,1);if(d<ini)break;
-  const pe=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01",p=G.find(g=>g.inmueble_id==x.id&&g.periodo==pe),due=new Date(d.getFullYear(),d.getMonth(),x.dia_pago,23,59,59);
+  const pe=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01",p=G.find(g=>g.inmueble_id==x.id&&g.periodo==pe&&g.inquilino_id==x.inquilino_id),due=new Date(d.getFullYear(),d.getMonth(),x.dia_pago,23,59,59);
   out.push({per:pe,st:p?(p.estado=="por_confirmar"?"wait":(new Date(p.created_at)<=due?"ok":"tarde")):(hoy>due?"mora":"pend")})}
  return out}
 const LB={ok:"A tiempo",tarde:"Con atraso",mora:"Sin pago",pend:"Pendiente",wait:"Por confirmar"},CL={ok:"ok",tarde:"pend",mora:"mora",pend:"pend",wait:"wait"};
@@ -119,17 +120,92 @@ async function boot(){const {data:{session}}=await db.auth.getSession();U=sessio
   P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data}
  if(!P.acepto_datos_en)return aceptar();live();P.rol=="propietario"?owner():tenant()}
 
-const tabs=()=>`<div class="tabs"><button data-tab="inm" aria-pressed="${TAB=="inm"}">Inmuebles</button><button data-tab="plan" aria-pressed="${TAB=="plan"}">Mi plan</button><button data-tab="cuenta" aria-pressed="${TAB=="cuenta"}">Cuenta</button>${P.es_admin?`<button data-tab="admin" aria-pressed="${TAB=="admin"}">Admin</button>`:""}</div>`;
+const tabs=()=>`<div class="tabs"><button data-tab="inm" aria-pressed="${TAB=="inm"}">Inmuebles</button><button data-tab="plan" aria-pressed="${TAB=="plan"}">Plan</button><button data-tab="rep" aria-pressed="${TAB=="rep"}">Reportes</button><button data-tab="cuenta" aria-pressed="${TAB=="cuenta"}">Cuenta</button>${P.es_admin?`<button data-tab="admin" aria-pressed="${TAB=="admin"}">Admin</button>`:""}</div>`;
 const bindTabs=()=>document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;PAY=null;ADDING=false;owner()});
 async function owner(msg=""){
  P=(await db.from("profiles").select("*").eq("id",U.id).maybeSingle()).data||P;
  if(P.estado=="suspendido"){app.innerHTML='<div class="card"><h2>Cuenta suspendida</h2><p class="mut">Contacta al administrador de Obvio!.</p></div>';return}
  if(P.debe_elegir)return elegir();
  if(TAB=="plan")return planUI();
+ if(TAB=="rep")return repUI();
  if(TAB=="cuenta")return cuentaUI();
  if(TAB=="admin"&&P.es_admin)return adminUI();
  await inmuebles(msg);app.insertAdjacentHTML("afterbegin",tabs());bindTabs()}
+const dl=(n,b)=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)};
+const cel=v=>{let t=v==null?"":String(v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'};
+const csv=rows=>"\ufeff"+rows.map(r=>r.map(cel).join(";")).join("\r\n");
+const safe=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"x";
+const ext=p=>(String(p).split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,"")||"bin";
+const ym=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+const rango=()=>{if(!RF){const h=new Date();RF={d:ym(new Date(h.getFullYear(),h.getMonth()-11,1)),h:ym(h)}}if(RF.d>RF.h)RF={d:RF.h,h:RF.d};return RF};
+const fdia=s=>s?new Date(s).toLocaleDateString("es-CO"):"";
+const CE={"A tiempo":"ok","Con atraso":"pend","Por confirmar":"wait"};
+const csvBlob=rows=>new Blob([csv(rows)],{type:"text/csv;charset=utf-8"});
+async function zipArchivos(z,bucket,carpeta,items,pg){let n=0;for(const it of items){n++;pg.textContent="Preparando archivos ("+n+" de "+items.length+")...";try{const r=await db.storage.from(bucket).createSignedUrl(it.path,120);if(!r.data)continue;const b=await(await fetch(r.data.signedUrl)).blob();z.file(carpeta+"/"+it.nombre,b)}catch(e){}}}
+async function bajarZip(z,nombre,pg){pg.textContent="Generando archivo...";dl(nombre,await z.generateAsync({type:"blob"}));pg.textContent="Listo. Revisa tus descargas."}
+function estPago(x,p){if(p.estado=="por_confirmar")return "Por confirmar";const [y,m]=p.periodo.split("-");return new Date(p.created_at)<=new Date(+y,+m-1,x.dia_pago,23,59,59)?"A tiempo":"Con atraso"}
+function mesesSinPago(x,G,d,h){if(!x.inquilino_id)return 0;let n=0;const hoy=new Date(),ini=new Date(Math.max(+new Date(d+"-01T12:00:00"),+new Date((x.ocupado_desde||x.created_at.slice(0,10))+"T12:00:00")));
+ for(let k=new Date(ini.getFullYear(),ini.getMonth(),1);ym(k)<=h;k=new Date(k.getFullYear(),k.getMonth()+1,1)){const pe=ym(k)+"-01";if(G.some(g=>g.inmueble_id==x.id&&g.periodo==pe))continue;if(hoy>new Date(k.getFullYear(),k.getMonth(),x.dia_pago,23,59,59))n++}return n}
+async function repUI(){
+ if(P.plan=="gratis"){app.innerHTML='<div class="card"><h3>Reportes y consolidados</h3><p class="mut">Disponibles en los planes pagos: resumen por inmueble, descarga en Excel y paquete con los comprobantes.</p><button class="full" id="vp">Ver planes</button></div>';app.insertAdjacentHTML("afterbegin",tabs());bindTabs();$("vp").onclick=()=>{TAB="plan";owner()};return}
+ const R=rango();
+ const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*").gte("periodo",R.d+"-01").lte("periodo",R.h+"-01").order("periodo",{ascending:false})]);
+ const I=i.data||[],G=g.data||[],byId=id=>I.find(x=>x.id==id)||{};
+ const res=I.map(x=>{const gp=G.filter(p=>p.inmueble_id==x.id);return {x,rec:gp.filter(p=>p.estado=="confirmado").reduce((a,p)=>a+p.valor,0),ot:gp.filter(p=>estPago(x,p)=="A tiempo").length,at:gp.filter(p=>estPago(x,p)=="Con atraso").length,pc:gp.filter(p=>p.estado=="por_confirmar").length,sp:mesesSinPago(x,G,R.d,R.h)}});
+ const tot=res.reduce((a,r)=>a+r.rec,0),mx=ym(new Date());
+ app.innerHTML=`<div class="card"><h3>Reportes y consolidados</h3><div class="row" style="gap:8px"><div style="flex:1"><label class="mut">Desde</label><input type="month" id="rd" value="${R.d}" max="${mx}"></div><div style="flex:1"><label class="mut">Hasta</label><input type="month" id="rh" value="${R.h}" max="${mx}"></div></div></div>
+ <div class="card"><div class="row"><span class="mut">Recaudado en el período (confirmado)</span><b style="font-size:22px">${cop(tot)}</b></div>
+  <button class="full" id="dx">Descargar Excel (CSV)</button><button class="alt full" id="dz">Descargar con comprobantes (ZIP)</button><div class="mut" id="pg" style="margin-top:8px"></div></div>
+ <div class="card"><h3>Por inmueble</h3>${res.length?res.map(r=>`<div style="margin-top:12px"><b>${esc(r.x.nombre)}</b>${r.x.inquilino_id?"":' <span class="badge vac">Desocupado</span>'}<div class="mut">${cop(r.rec)} recaudado · ${r.ot} a tiempo · ${r.at} con atraso · ${r.sp} sin pago${r.pc?" · "+r.pc+" por confirmar":""}</div></div>`).join(""):'<p class="mut" style="margin:6px 0 0">Aún no tienes inmuebles.</p>'}</div>
+ <div class="card"><h3>Pagos del período (${G.length})</h3>${G.slice(0,40).map(p=>{const x=byId(p.inmueble_id),e=estPago(x,p);return `<div class="row" style="margin-top:8px"><span>${esc(mes(p.periodo))}<br><span class="mut">${esc(x.nombre||"")} · ${cop(p.valor)}</span></span><span class="badge ${CE[e]}">${e}</span></div>`}).join("")||'<p class="mut" style="margin:6px 0 0">No hay pagos en este período.</p>'}${G.length>40?'<p class="mut">Se muestran los 40 más recientes. Descarga el Excel para ver todos.</p>':""}</div>`;
+ app.insertAdjacentHTML("afterbegin",tabs());bindTabs();
+ const det=()=>[["Mes","Inmueble","Tipo","Torre","Apartamento","Dirección","Valor","Método","Referencia","Fecha de aviso","Estado","Confirmado el"]].concat(G.map(p=>{const x=byId(p.inmueble_id);return [p.periodo.slice(0,7),x.nombre,x.tipo,x.torre,x.numero,x.direccion,p.valor,p.metodo=="bre-b"?"Bre-B":"Transferencia",p.referencia,fdia(p.created_at),estPago(x,p),fdia(p.confirmado_en)]}));
+ const resm=()=>[["Inmueble","Tipo","Torre","Apartamento","Dirección","Situación actual","Recaudado","Pagos a tiempo","Pagos con atraso","Meses sin pago","Por confirmar"]].concat(res.map(r=>[r.x.nombre,r.x.tipo,r.x.torre,r.x.numero,r.x.direccion,r.x.inquilino_id?"Ocupado":"Desocupado",r.rec,r.ot,r.at,r.sp,r.pc]));
+ $("dx").onclick=()=>dl("consolidado-obvio-"+R.d+"_a_"+R.h+".csv",csvBlob(det()));
+ $("dz").onclick=async()=>{if(!window.JSZip){$("pg").textContent="No se pudo cargar el compresor. Revisa tu conexión.";return}$("dz").disabled=true;const z=new window.JSZip();z.file("detalle.csv",csv(det()));z.file("resumen.csv",csv(resm()));
+  await zipArchivos(z,"soportes","comprobantes",G.filter(p=>p.soporte_url).map(p=>({path:p.soporte_url,nombre:p.periodo.slice(0,7)+"_"+safe(byId(p.inmueble_id).nombre)+"_"+safe(p.referencia||p.id.slice(0,6))+"."+ext(p.soporte_url)})),$("pg"));
+  await bajarZip(z,"consolidado-obvio-"+R.d+"_a_"+R.h+".zip",$("pg"));$("dz").disabled=false};
+ $("rd").onchange=$("rh").onchange=()=>{RF={d:$("rd").value||R.d,h:$("rh").value||R.h};repUI()}}
+const subtabs=()=>`<div class="tabs"><button data-at="op" aria-pressed="${ADMTAB=="op"}">Pendientes</button><button data-at="rep" aria-pressed="${ADMTAB=="rep"}">Consolidados</button></div>`;
+const bindSub=()=>document.querySelectorAll("[data-at]").forEach(b=>b.onclick=()=>{ADMTAB=b.dataset.at;adminUI()});
+async function admRep(){
+ const R=rango();
+ const [ow,sp,rs]=await Promise.all([db.rpc("admin_propietarios"),db.from("suscripcion_pagos").select("*").order("created_at",{ascending:false}),db.rpc("admin_resumen")]);
+ if(ow.error){app.innerHTML='<div class="card err">'+esc(ow.error.message)+'</div>';app.insertAdjacentHTML("afterbegin",tabs());bindTabs();return}
+ const O=ow.data||[],SP=sp.data||[],S0=(rs.data||[])[0]||{},hoy=new Date();
+ const own=id=>O.find(o=>o.uid==id)||{nombre:"(cuenta eliminada)",email:""};
+ const pf=s=>new Date(s.confirmado_en||s.created_at),conf=id=>SP.filter(s=>s.propietario_id==id&&s.estado=="confirmado");
+ const cat=o=>{const v=o.plan_vence?new Date(o.plan_vence+"T12:00:00"):null;
+  if(o.plan!="gratis"&&(!v||v>=hoy))return "vigente";
+  if(o.plan!="gratis"&&o.plan_periodo=="mensual"&&hoy-v<=7*864e5)return "gracia";
+  return conf(o.uid).length?"dejo":"gratis"};
+ const CN={vigente:"Plan vigente",gracia:"En gracia",dejo:"Dejaron de pagar",gratis:"Gratis"},nc=k=>O.filter(o=>cat(o)==k).length;
+ const desde=new Date(R.d+"-01T00:00:00"),hasta=new Date(+R.h.slice(0,4),+R.h.slice(5,7),0,23,59,59);
+ const PG=SP.filter(s=>s.estado=="confirmado"&&pf(s)>=desde&&pf(s)<=hasta),tot=PG.reduce((a,s)=>a+s.valor,0);
+ const ult=id=>{const l=conf(id).map(pf).sort((a,b)=>b-a);return l[0]||null},pagado=id=>conf(id).reduce((a,s)=>a+s.valor,0),mx=ym(hoy);
+ app.innerHTML=`<div class="card"><h3>Resumen</h3><div class="stats" style="grid-template-columns:repeat(2,1fr)">
+  <div class="stat vac"><b>${S0.n_propietarios??0}</b><span>Propietarios registrados</span></div><div class="stat vac"><b>${S0.n_inquilinos??0}</b><span>Inquilinos registrados</span></div>
+  <div class="stat vac"><b>${S0.n_inmuebles??0}</b><span>Inmuebles (${S0.n_ocupados??0} ocupados)</span></div><div class="stat ok"><b>${nc("vigente")}</b><span>Con plan vigente</span></div>
+  <div class="stat pend"><b>${nc("gracia")}</b><span>En gracia</span></div><div class="stat mora"><b>${nc("dejo")}</b><span>Dejaron de pagar</span></div></div>
+  <div class="mut">${nc("gratis")} propietarios siguen en el plan Gratis sin haber pagado nunca.</div></div>
+ <div class="card"><h3>Período para el contador</h3><div class="row" style="gap:8px"><div style="flex:1"><label class="mut">Desde</label><input type="month" id="rd" value="${R.d}" max="${mx}"></div><div style="flex:1"><label class="mut">Hasta</label><input type="month" id="rh" value="${R.h}" max="${mx}"></div></div>
+  <div class="row" style="margin-top:12px"><span class="mut">Ingresos confirmados (${PG.length} pagos)</span><b style="font-size:22px">${cop(tot)}</b></div>
+  <button class="full" id="d1">Descargar pagos (Excel)</button><button class="alt full" id="d2">Descargar propietarios (Excel)</button><button class="alt full" id="d3">Paquete para el contador (ZIP con recibos y facturas)</button><div class="mut" id="pg" style="margin-top:8px"></div></div>
+ <div class="card"><h3>Pagos del período</h3>${PG.slice(0,50).map(s=>{const o=own(s.propietario_id);return `<div class="row" style="margin-top:10px"><span>${esc(o.nombre)}<br><span class="mut">${s.plan} ${s.periodo} · ${fdia(pf(s))}${s.factura_numero?" · factura "+esc(s.factura_numero):s.factura_url?"":" · sin factura"}</span></span><b>${cop(s.valor)}</b></div>`}).join("")||'<p class="mut" style="margin:6px 0 0">No hay pagos confirmados en este período.</p>'}${PG.length>50?'<p class="mut">Se muestran 50. Descarga el Excel para ver todos.</p>':""}</div>
+ <div class="card"><h3>Propietarios</h3>${["vigente","gracia","dejo","gratis"].map(k=>`<details style="margin-top:10px"><summary style="cursor:pointer"><b>${CN[k]}</b> (${nc(k)})</summary>${O.filter(o=>cat(o)==k).map(o=>`<div class="row" style="margin-top:8px"><span>${esc(o.nombre)}<br><span class="mut">${esc(o.email||"")} · registro ${fdia(o.creado)}</span></span><span class="mut" style="text-align:right">${o.plan}${o.plan_vence?"<br>vence "+fecha(o.plan_vence):""}${k=="dejo"&&ult(o.uid)?"<br>último pago "+fdia(ult(o.uid)):""}</span></div>`).join("")||'<p class="mut" style="margin:6px 0 0">Ninguno.</p>'}</details>`).join("")}</div>`;
+ app.insertAdjacentHTML("afterbegin",tabs());bindTabs();app.querySelector(".tabs").insertAdjacentHTML("afterend",subtabs());bindSub();
+ const rowsP=()=>[["Fecha de pago","Propietario","Correo","Plan","Periodicidad","Valor","Método","N.º factura","Factura adjunta","Comprobante adjunto"]].concat(PG.map(s=>{const o=own(s.propietario_id);return [fdia(pf(s)),o.nombre,o.email,s.plan,s.periodo,s.valor,s.metodo=="bre-b"?"Bre-B":"Transferencia",s.factura_numero,s.factura_url?"Sí":"No",s.soporte_url?"Sí":"No"]}));
+ const rowsO=()=>[["Nombre","Correo","Registrado","Plan","Periodicidad","Vence","Estado de la cuenta","Situación","Inmuebles activos","Inmuebles totales","Último pago","Total pagado"]].concat(O.map(o=>[o.nombre,o.email,fdia(o.creado),o.plan,o.plan_periodo,o.plan_vence?fecha(o.plan_vence):"",o.estado,CN[cat(o)],o.n_activos,o.n_inmuebles,ult(o.uid)?fdia(ult(o.uid)):"",pagado(o.uid)]));
+ $("d1").onclick=()=>dl("pagos-obvio-"+R.d+"_a_"+R.h+".csv",csvBlob(rowsP()));
+ $("d2").onclick=()=>dl("propietarios-obvio-"+ym(hoy)+".csv",csvBlob(rowsO()));
+ $("d3").onclick=async()=>{if(!window.JSZip){$("pg").textContent="No se pudo cargar el compresor. Revisa tu conexión.";return}$("d3").disabled=true;const z=new window.JSZip();z.file("pagos.csv",csv(rowsP()));z.file("propietarios.csv",csv(rowsO()));
+  const nm=s=>safe(own(s.propietario_id).nombre)+"_"+s.plan+"_"+ym(pf(s));
+  await zipArchivos(z,"planes","comprobantes",PG.filter(s=>s.soporte_url).map(s=>({path:s.soporte_url,nombre:nm(s)+"."+ext(s.soporte_url)})),$("pg"));
+  await zipArchivos(z,"facturas","facturas",PG.filter(s=>s.factura_url).map(s=>({path:s.factura_url,nombre:"factura-"+safe(s.factura_numero||"sin-numero")+"_"+nm(s)+"."+ext(s.factura_url)})),$("pg"));
+  await bajarZip(z,"paquete-contador-"+R.d+"_a_"+R.h+".zip",$("pg"));$("d3").disabled=false};
+ $("rd").onchange=$("rh").onchange=()=>{RF={d:$("rd").value||R.d,h:$("rh").value||R.h};admRep()}}
 async function adminUI(msg=""){
+ if(ADMTAB=="rep")return admRep();
  const [ow,sp]=await Promise.all([db.rpc("admin_propietarios"),db.from("suscripcion_pagos").select("*").order("created_at",{ascending:false})]);
  if(ow.error){app.innerHTML='<div class="card err">'+ow.error.message+'</div>';app.insertAdjacentHTML("afterbegin",tabs());bindTabs();return}
  const O=ow.data||[],SP=sp.data||[],nom=id=>{const o=O.find(x=>x.uid==id);return o?esc(o.nombre)+" · "+esc(o.email||""):"Propietario eliminado"};
@@ -138,7 +214,7 @@ async function adminUI(msg=""){
  app.innerHTML=`<div class="err" id="er">${msg}</div>
  <div class="card"><h3>Pagos de plan por confirmar (${pend.length})</h3>${pend.map(x=>`<div class="note"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)} · ${x.metodo} · ${new Date(x.created_at).toLocaleDateString("es-CO")}</span>
   ${x.soporte_url?`<button class="alt full" data-vs="${esc(x.soporte_url)}">Ver comprobante</button>`:""}<div class="row" style="gap:8px;margin-top:8px"><button style="flex:1" data-ap="${x.id}">Ya verifiqué, confirmar</button><button class="alt" ${BAD} data-rp="${x.id}">Rechazar</button></div></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay pagos pendientes.</p>'}</div>
- <div class="card"><h3>Facturas por subir (${sinf.length})</h3>${sinf.map(x=>`<div class="note" data-ow="${x.propietario_id}"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)}</span><input type="file" accept="application/pdf"><button class="full" data-sf="${x.id}">Subir factura</button></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay facturas pendientes.</p>'}</div>
+ <div class="card"><h3>Facturas por subir (${sinf.length})</h3>${sinf.map(x=>`<div class="note" data-ow="${x.propietario_id}"><b>${nom(x.propietario_id)}</b><br><span class="mut">${x.plan} ${x.periodo} · ${cop(x.valor)}</span><input type="file" accept="application/pdf"><input type="text" placeholder="N.º de factura (opcional)" data-fn maxlength="60"><button class="full" data-sf="${x.id}">Subir factura</button></div>`).join("")||'<p class="mut" style="margin:6px 0 0">No hay facturas pendientes.</p>'}</div>
  <div class="card"><h3>Propietarios (${O.length})</h3>${O.map(o=>`<details style="margin-top:12px"><summary style="cursor:pointer"><b>${esc(o.nombre)}</b> <span class="badge ${o.plan=="gratis"?"wait":"ok"}">${o.plan}</span>${o.estado=="suspendido"?' <span class="badge mora">Suspendido</span>':""}</summary>
   <div class="mut" style="margin-top:6px">${esc(o.email||"")}<br>${o.n_activos} de ${o.n_inmuebles} ${o.n_inmuebles==1?"inmueble activo":"inmuebles activos"}${o.plan_vence?" · vence "+fecha(o.plan_vence):""}</div>
   <select><option value="basico">Básico</option><option value="plus">Plus</option><option value="empresarial">Empresarial</option><option value="gratis">Gratis</option></select>
@@ -146,15 +222,15 @@ async function adminUI(msg=""){
   <button class="full" data-sp="${o.uid}">Activar este plan</button>
   <div class="row" style="gap:8px;margin-top:8px"><button class="alt" style="flex:1" data-cx="${o.uid}">Cancelar plan</button><button class="alt" style="flex:1" data-st="${o.uid}|${o.estado=="activo"?"suspendido":"activo"}">${o.estado=="activo"?"Suspender":"Reactivar"}</button></div>
   <button class="alt full" ${BAD.replace("flex:1;","")} data-el="${o.uid}">Eliminar cuenta</button></details>`).join("")||'<p class="mut" style="margin:6px 0 0">Aún no hay propietarios.</p>'}</div>`;
- app.insertAdjacentHTML("afterbegin",tabs());bindTabs();
+ app.insertAdjacentHTML("afterbegin",tabs());bindTabs();app.querySelector(".tabs").insertAdjacentHTML("afterend",subtabs());bindSub();
  const run=async p=>{const r=await p;adminUI(r&&r.error?(r.error.message||"No se pudo completar la acción"):"")};
  const url=async(bk,path)=>{const r=await db.storage.from(bk).createSignedUrl(path,300);if(r.data)window.open(r.data.signedUrl,"_blank");else $("er").textContent=r.error.message};
  document.querySelectorAll("[data-vs]").forEach(b=>b.onclick=()=>url("planes",b.dataset.vs));
  document.querySelectorAll("[data-ap]").forEach(b=>b.onclick=()=>{b.disabled=true;run(db.rpc("admin_confirmar_pago",{p_id:b.dataset.ap}))});
  document.querySelectorAll("[data-rp]").forEach(b=>b.onclick=()=>{if(confirm("¿Rechazar este pago?"))run(db.rpc("admin_rechazar_pago",{p_id:b.dataset.rp}))});
- document.querySelectorAll("[data-sf]").forEach(b=>b.onclick=async()=>{const box=b.closest(".note"),f=box.querySelector("input").files[0];if(!f){$("er").textContent="Elige el PDF de la factura";return}
+ document.querySelectorAll("[data-sf]").forEach(b=>b.onclick=async()=>{const box=b.closest(".note"),f=box.querySelector("input[type=file]").files[0];if(!f){$("er").textContent="Elige el PDF de la factura";return}
   b.disabled=true;const path=box.dataset.ow+"/"+b.dataset.sf+".pdf",u=await db.storage.from("facturas").upload(path,f,{upsert:true});
-  if(u.error){adminUI(u.error.message);return}run(db.rpc("admin_adjuntar_factura",{p_id:b.dataset.sf,p_path:path}))});
+  if(u.error){adminUI(u.error.message);return}run(db.rpc("admin_adjuntar_factura",{p_id:b.dataset.sf,p_path:path,p_numero:box.querySelector("[data-fn]").value.trim()||null}))});
  document.querySelectorAll("[data-sp]").forEach(b=>b.onclick=()=>{const d=b.closest("details");run(db.rpc("admin_set_plan",{p_user:b.dataset.sp,p_plan:d.querySelector("select").value,p_vence:d.querySelector("input[type=date]").value||null}))});
  document.querySelectorAll("[data-cx]").forEach(b=>b.onclick=()=>{if(confirm("¿Cancelar el plan de este propietario? Pasa a Gratis ahora."))run(db.rpc("admin_cancelar_plan",{p_user:b.dataset.cx}))});
  document.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{const [u,e]=b.dataset.st.split("|");run(db.rpc("admin_set_estado",{p_user:u,p_estado:e}))});
@@ -216,11 +292,11 @@ async function inmuebles(msg=""){
  const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
  const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,ia=I.filter(x=>x.activo!==false).length,E=I.filter(x=>x.activo!==false).map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;
  app.innerHTML=`<div class="card"><h3>Hola, ${esc(P.nombre)}</h3><div class="mut">Plan ${P.plan} · ${ia} ${ia==1?"inmueble activo":"inmuebles activos"}</div></div>
- ${I.length?`<div class="stats"><div class="stat ok"><b>${ct("ok")}</b><span>Al día</span></div><div class="stat pend"><b>${ct("pend")+ct("wait")}</b><span>Pendientes</span></div><div class="stat mora"><b>${ct("mora")}</b><span>En mora</span></div></div>`:""}
+ ${I.length?`<div class="stats"><div class="stat ok"><b>${ct("ok")}</b><span>Al día</span></div><div class="stat pend"><b>${ct("pend")+ct("wait")}</b><span>Pendientes</span></div><div class="stat mora"><b>${ct("mora")}</b><span>En mora</span></div><div class="stat vac"><b>${ct("vac")}</b><span>Desocupados</span></div></div>`:""}
  ${n?`<div class="card" style="border-color:var(--wait)"><b>Tienes ${n} ${n==1?"pago":"pagos"} por confirmar</b></div>`:""}
  ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
   return `<div class="card"><div class="row"><h3>${esc(x.nombre)}</h3>${x.activo===false?'<span class="badge wait">Archivado</span>':bd(s)}</div><div class="mut">${esc(x.tipo)} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>${detalle(x)}
-  <div class="mut" style="margin-top:6px">${x.inquilino_id?"Con inquilino":`Código para invitar: <span class="code">${esc(x.codigo)}</span>`}</div>
+  <div class="mut" style="margin-top:6px">${x.inquilino_id?`Con inquilino${x.ocupado_desde?" desde "+fecha(x.ocupado_desde):""}<br><button class="alt" style="margin-top:6px" data-vac="${x.id}">Marcar como desocupado</button>`:`Desocupado${x.desocupado_desde?" desde "+fecha(x.desocupado_desde):""} · código para invitar: <span class="code">${esc(x.codigo)}</span>`}</div>
   ${histHTML(x,G)}
   ${w?`<div class="note"><b>Pago por confirmar</b><br><span class="mut">${cop(w.valor)} por ${w.metodo=="bre-b"?"Bre-B":"transferencia"} · referencia <span class="code">${esc(w.referencia||"sin referencia")}</span>. Revisa en tu cuenta que el dinero entró antes de confirmar.</span>${w.soporte_url?`<button class="alt full" data-sop="${esc(w.soporte_url)}">Ver comprobante</button>`:""}<button class="full" data-ok="${w.id}">Ya verifiqué, confirmar pago</button></div>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
  ${ADDING?`<div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)" autocomplete="off">
@@ -230,6 +306,7 @@ async function inmuebles(msg=""){
  <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">
  <div class="err" id="er">${msg}</div><button class="full" id="add">Guardar inmueble</button><button class="alt full" id="cn">Cancelar</button></div>`:`<button class="full" id="nuevo">+ Agregar inmueble</button>`}`;
  pushCard();
+ document.querySelectorAll("[data-vac]").forEach(b=>b.onclick=async()=>{if(!confirm("¿Marcar este inmueble como desocupado? Tu inquilino dejará de verlo y se genera un código nuevo para el próximo."))return;const r=await db.rpc("desocupar_inmueble",{p_id:b.dataset.vac});if(r.error){alert(r.error.message);return}owner()});
  if($("nuevo"))$("nuevo").onclick=()=>{ADDING=true;owner()};
  if($("cn"))$("cn").onclick=()=>{ADDING=false;owner()};
  if($("add")){const tp=()=>{const a=$("t").value=="apartamento";$("xa").hidden=!a;$("xo").hidden=a};$("t").onchange=tp;tp();$("n").focus();

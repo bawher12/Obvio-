@@ -20,7 +20,8 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .mut{color:var(--mut);font-size:14px}h2,h3{margin:0 0 6px}
 .badge{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
 .ok{background:var(--okbg);color:var(--ok)}.pend{background:var(--warnbg);color:var(--warn)}.mora{background:var(--badbg);color:var(--bad)}.wait{background:var(--waitbg);color:var(--wait)}
-input,select{width:100%;padding:11px;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{resize:vertical;min-height:70px}
+input,select,textarea{width:100%;padding:11px;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
 button{font:700 15px inherit;font-family:inherit;cursor:pointer;border-radius:10px;padding:11px 16px;border:0;background:var(--pri);color:#fff}
 button.alt{background:none;color:var(--pri);border:1px solid var(--pri)}button.full{width:100%;margin-top:10px}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
@@ -51,7 +52,7 @@ const bd=s=>`<span class="badge ${s}">${ST[s]}</span>`;
 const per=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"};
 function estado(i,pagos){if(!i.inquilino_id)return "vac";const p=pagos.find(x=>x.inmueble_id==i.id&&x.periodo==per()&&x.inquilino_id==i.inquilino_id);
  if(p)return p.estado=="confirmado"?"ok":"wait";return new Date().getDate()>i.dia_pago?"mora":"pend"}
-let U,P,TAB="inm",PAY=null,ADDING=false,ADMTAB="op",RF=null;const POLITICA="2026-11";
+let U,P,TAB="inm",PAY=null,ADDING=false,ADMTAB="op",RF=null,CT=null;const POLITICA="2026-11";
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const detalle=x=>{const a=[];if(x.tipo=="apartamento"){if(x.torre)a.push("Torre "+esc(x.torre));if(x.numero)a.push("Apto "+esc(x.numero))}if(x.direccion)a.push(esc(x.direccion));return a.length?`<div class="mut">${a.join(" · ")}</div>`:""};
 const fecha=d=>new Date(d+"T12:00:00").toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
@@ -82,7 +83,7 @@ function pdf(x,p){const {jsPDF}=window.jspdf,d=new jsPDF(),L=20;
  d.setFontSize(11);d.setTextColor(90,107,124);d.text("Comprobante de pago de arriendo",L,36);
  d.setDrawColor(221,227,234);d.line(L,42,190,42);
  const f=new Date(p.confirmado_en||p.created_at),fd=f.toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
- const rows=[["Comprobante","OB-"+p.id.slice(0,8).toUpperCase()],["Inmueble",x.nombre],["Tipo",x.tipo],["Inquilino",P.nombre],["Periodo",mes(p.periodo)],["Valor pagado",cop(p.valor)],["Método",p.metodo=="bre-b"?"Bre-B":"Transferencia bancaria"],["Referencia",p.referencia||"-"],["Confirmado el",fd]];
+ const rows=[["Comprobante","OB-"+p.id.slice(0,8).toUpperCase()],["Inmueble",p.inmueble_nombre||(x&&x.nombre)||"-"],...(x&&p.inmueble_id==x.id?[["Tipo",x.tipo]]:[]),["Inquilino",P.nombre],["Periodo",mes(p.periodo)],["Valor pagado",cop(p.valor)],["Método",p.metodo=="bre-b"?"Bre-B":"Transferencia bancaria"],["Referencia",p.referencia||"-"],["Confirmado el",fd]];
  let y=56;d.setFontSize(12);rows.forEach(r=>{d.setTextColor(90,107,124);d.text(r[0],L,y);d.setTextColor(16,36,58);d.text(String(r[1]),80,y);y+=11});
  d.setDrawColor(221,227,234);d.line(L,y,190,y);
  d.setFontSize(9);d.setTextColor(90,107,124);d.text("Pago registrado por el inquilino y confirmado por el propietario en Obvio!.",L,y+10);
@@ -109,7 +110,7 @@ async function pushCard(){const d=document.createElement("div");d.className="car
   d.innerHTML='<b>Avisos activados</b><p class="mut" style="margin:4px 0 0">Recibirás notificaciones en este dispositivo.</p>'}catch(e){$("pe").textContent=e.message}}}
 function live(){if(live.c)return;live.c=1;try{db.channel("pagos-"+Date.now()).on("postgres_changes",{event:"*",schema:"public",table:"pagos"},()=>{
  if(P.rol=="propietario"){const f=$("n");if(f&&(f.value||$("v").value||$("d").value)){$("er").textContent="Llegó un pago nuevo. Termina o borra el formulario y recarga la página.";return}owner()}
- else if(!($("f")&&$("f").files.length))tenant()}).on("postgres_changes",{event:"*",schema:"public",table:"suscripcion_pagos"},()=>{if(P&&P.rol=="propietario"&&(TAB=="plan"||TAB=="cuenta"||TAB=="admin"))owner()}).subscribe()}catch(e){}}
+ else if(!($("f")&&$("f").files.length))tenant()}).on("postgres_changes",{event:"*",schema:"public",table:"suscripcion_pagos"},()=>{if(P&&P.rol=="propietario"&&(TAB=="plan"||TAB=="cuenta"||TAB=="admin"))owner()}).on("postgres_changes",{event:"*",schema:"public",table:"avisos_contrato"},()=>{if(!P)return;if(P.rol=="propietario"){if(TAB=="inm"&&!CT&&!$("n"))owner()}else if(!($("f")&&$("f").files.length)&&!($("nt")&&$("nt").value))tenant()}).subscribe()}catch(e){}}
 function aceptar(){app.innerHTML=`<div class="card"><h2>Tratamiento de datos</h2><p class="mut">Para seguir usando Obvio! necesitamos tu autorización para tratar tus datos personales, según nuestra <a href="politica.html" target="_blank" rel="noopener">política de tratamiento de datos</a>.</p><div class="err" id="er"></div><button class="full" id="ok">Acepto</button></div>`;
  $("ok").onclick=async()=>{const r=await db.rpc("aceptar_datos",{p_version:POLITICA});if(r.error)$("er").textContent=r.error.message;else boot()}}
 async function boot(){const {data:{session}}=await db.auth.getSession();U=session&&session.user;if(!U)return home();$("wrap").style.maxWidth="560px";
@@ -139,6 +140,31 @@ const ext=p=>(String(p).split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9
 const ym=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
 const rango=()=>{if(!RF){const h=new Date();RF={d:ym(new Date(h.getFullYear(),h.getMonth()-11,1)),h:ym(h)}}if(RF.d>RF.h)RF={d:RF.h,h:RF.d};return RF};
 const fdia=s=>s?new Date(s).toLocaleDateString("es-CO"):"";
+const ymd=d=>ym(d)+"-"+String(d.getDate()).padStart(2,"0");
+const restar=(iso,m)=>{const [y,mo,d]=iso.split("-").map(Number),t=new Date(y,mo-1-m,1),mx=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();return new Date(t.getFullYear(),t.getMonth(),Math.min(d,mx),12)};
+const lim=x=>x.contrato_vence?restar(x.contrato_vence,x.preaviso_meses??3):null;
+const avisoDe=(x,AV)=>AV.find(a=>a.inmueble_id==x.id&&a.contrato_vence==x.contrato_vence);
+const dias=d=>Math.round((d-new Date())/864e5);
+const meses=n=>n+" "+(n==1?"mes":"meses");
+function contratoHTML(x,AV){
+ let h='<div class="note"><b>Contrato</b>';
+ if(!x.contrato_vence)h+='<div class="mut">Aún no registras la fecha de fin del contrato. Con ella, tu inquilino podrá avisarte si continúa.</div>';
+ else{const a=avisoDe(x,AV),l=lim(x),d=dias(l);
+  h+=`<div class="mut">Termina el ${fecha(x.contrato_vence)}. Tu inquilino debe avisar hasta el ${fecha(ymd(l))} (${meses(x.preaviso_meses??3)} antes).</div><div style="margin-top:6px">`;
+  h+=a?`<span class="badge ${a.decision=="continuar"?"ok":"mora"}">${a.decision=="continuar"?"Continúa":"No continúa"}</span> <span class="mut">avisó el ${fdia(a.created_at)}</span>${a.nota?`<div class="mut">«${esc(a.nota)}»</div>`:""}`
+   :(d<0?'<span class="badge mora">Sin respuesta: el plazo ya venció</span>':`<span class="badge wait">Sin respuesta · faltan ${d} ${d==1?"día":"días"}</span>`);
+  h+="</div>"}
+ return h+`<button class="alt full" data-ct="${x.id}">${x.contrato_vence?"Cambiar fechas del contrato":"Registrar fin del contrato"}</button></div>`}
+const formCt=x=>`<div class="note"><b>Contrato</b><label class="mut" style="display:block;margin-top:8px">Fecha de fin del contrato</label><input type="date" id="cf" value="${esc(x.contrato_vence||"")}"><label class="mut" style="display:block;margin-top:8px">Meses de aviso antes del fin</label><input type="number" id="cm" min="0" max="12" value="${x.preaviso_meses??3}"><p class="mut" style="font-size:13px;margin:6px 0 0">Para vivienda urbana, la Ley 820 de 2003 habla de 3 meses de aviso escrito. Para otros inmuebles, consúltalo con un abogado.</p><div class="err" id="er2"></div><button class="full" data-cs="${x.id}">Guardar</button><button class="alt full" data-cc="1">Cancelar</button></div>`;
+function contratoInq(x,AV){
+ if(!x.contrato_vence)return '<div class="card"><h3>Tu contrato</h3><p class="mut" style="margin:0">Tu propietario aún no ha registrado la fecha de fin del contrato. Cuando lo haga, aquí podrás avisar si continúas.</p></div>';
+ const a=avisoDe(x,AV),l=lim(x),d=dias(l);
+ return `<div class="card"><h3>Tu contrato</h3><div class="mut">Termina el ${fecha(x.contrato_vence)}. Debes avisar si continúas o no hasta el ${fecha(ymd(l))} (${meses(x.preaviso_meses??3)} antes).</div>
+ ${a?`<div style="margin-top:8px"><span class="badge ${a.decision=="continuar"?"ok":"mora"}">${a.decision=="continuar"?"Avisaste que continúas":"Avisaste que no continúas"}</span> <span class="mut">el ${fdia(a.created_at)}</span></div><p class="mut" style="margin:8px 0 0">Si cambias de decisión, puedes avisar de nuevo.</p>`:`<div class="mut" style="margin-top:8px">${d>=0?"Te quedan "+d+" "+(d==1?"día":"días")+" para avisar.":"El plazo para avisar ya venció."}</div>`}
+ <textarea id="nt" placeholder="Nota para el propietario (opcional)" maxlength="300"></textarea><div class="err" id="er3"></div>
+ <div class="row" style="gap:8px;margin-top:8px"><button style="flex:1" data-av="continuar">Quiero continuar</button><button class="alt" style="flex:1" data-av="no_continuar">No voy a continuar</button></div>
+ <p class="mut" style="margin:10px 0 0;font-size:13px">Este aviso queda registrado en Obvio! y le llega a tu propietario. No reemplaza la notificación que exija la ley o tu contrato (por ejemplo, un aviso escrito por correo certificado). Confírmalo con un abogado.</p></div>`}
+const compCard=(conf,x)=>conf.length?`<div class="card"><h3>Mis comprobantes</h3>${conf.map(p=>`<div class="row" style="margin-top:8px"><span>${esc(mes(p.periodo))} · ${cop(p.valor)}${p.inmueble_nombre&&(!x||p.inmueble_id!=x.id)?'<br><span class="mut">'+esc(p.inmueble_nombre)+"</span>":""}</span><button class="alt" data-pdf="${p.id}">Descargar PDF</button></div>`).join("")}</div>`:"";
 const CE={"A tiempo":"ok","Con atraso":"pend","Por confirmar":"wait"};
 const csvBlob=rows=>new Blob([csv(rows)],{type:"text/csv;charset=utf-8"});
 async function zipArchivos(z,bucket,carpeta,items,pg){let n=0;for(const it of items){n++;pg.textContent="Preparando archivos ("+n+" de "+items.length+")...";try{const r=await db.storage.from(bucket).createSignedUrl(it.path,120);if(!r.data)continue;const b=await(await fetch(r.data.signedUrl)).blob();z.file(carpeta+"/"+it.nombre,b)}catch(e){}}}
@@ -289,14 +315,15 @@ async function eliminar(){if(prompt("Esto borra tu cuenta y tus datos y no se pu
  try{Object.keys(localStorage).filter(k=>k.startsWith("sb-")).forEach(k=>localStorage.removeItem(k))}catch(e){}location.href=location.pathname}
 function eliminarCard(){const d=document.createElement("div");d.className="card";d.innerHTML='<h3>Mi cuenta</h3><p class="mut" style="margin:0 0 8px">Puedes eliminar tu cuenta y tus datos cuando quieras.</p><button class="alt full" id="del2">Eliminar mi cuenta</button><p class="mut" style="margin:10px 0 0"><a href="politica.html" target="_blank" rel="noopener">Política de tratamiento de datos</a></p>';app.appendChild(d);$("del2").onclick=eliminar}
 async function inmuebles(msg=""){
- const [i,g]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*")]);
- const I=i.data||[],G=g.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,ia=I.filter(x=>x.activo!==false).length,E=I.filter(x=>x.activo!==false).map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;
+ const [i,g,a]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*"),db.from("avisos_contrato").select("*").order("created_at",{ascending:false})]);
+ const I=i.data||[],G=g.data||[],AV=a.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,ia=I.filter(x=>x.activo!==false).length,E=I.filter(x=>x.activo!==false).map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;
  app.innerHTML=`<div class="card"><h3>Hola, ${esc(P.nombre)}</h3><div class="mut">Plan ${P.plan} · ${ia} ${ia==1?"inmueble activo":"inmuebles activos"}</div></div>
  ${I.length?`<div class="stats"><div class="stat ok"><b>${ct("ok")}</b><span>Al día</span></div><div class="stat pend"><b>${ct("pend")+ct("wait")}</b><span>Pendientes</span></div><div class="stat mora"><b>${ct("mora")}</b><span>En mora</span></div><div class="stat vac"><b>${ct("vac")}</b><span>Desocupados</span></div></div>`:""}
  ${n?`<div class="card" style="border-color:var(--wait)"><b>Tienes ${n} ${n==1?"pago":"pagos"} por confirmar</b></div>`:""}
  ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
   return `<div class="card"><div class="row"><h3>${esc(x.nombre)}</h3>${x.activo===false?'<span class="badge wait">Archivado</span>':bd(s)}</div><div class="mut">${esc(x.tipo)} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>${detalle(x)}
   <div class="mut" style="margin-top:6px">${x.inquilino_id?`Con inquilino${x.ocupado_desde?" desde "+fecha(x.ocupado_desde):""}<br><button class="alt" style="margin-top:6px" data-vac="${x.id}">Marcar como desocupado</button>`:`Desocupado${x.desocupado_desde?" desde "+fecha(x.desocupado_desde):""} · código para invitar: <span class="code">${esc(x.codigo)}</span>`}</div>
+  ${x.inquilino_id?(CT==x.id?formCt(x):contratoHTML(x,AV)):""}
   ${histHTML(x,G)}
   ${w?`<div class="note"><b>Pago por confirmar</b><br><span class="mut">${cop(w.valor)} por ${w.metodo=="bre-b"?"Bre-B":"transferencia"} · referencia <span class="code">${esc(w.referencia||"sin referencia")}</span>. Revisa en tu cuenta que el dinero entró antes de confirmar.</span>${w.soporte_url?`<button class="alt full" data-sop="${esc(w.soporte_url)}">Ver comprobante</button>`:""}<button class="full" data-ok="${w.id}">Ya verifiqué, confirmar pago</button></div>`:""}</div>`}).join("")||`<div class="card mut">Aún no tienes inmuebles. Agrega el primero.</div>`}
  ${ADDING?`<div class="card"><h3>Agregar inmueble</h3><input id="n" placeholder="Nombre (ej. Apto 302)" autocomplete="off">
@@ -306,6 +333,10 @@ async function inmuebles(msg=""){
  <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">
  <div class="err" id="er">${msg}</div><button class="full" id="add">Guardar inmueble</button><button class="alt full" id="cn">Cancelar</button></div>`:`<button class="full" id="nuevo">+ Agregar inmueble</button>`}`;
  pushCard();
+ document.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{CT=b.dataset.ct;owner()});
+ document.querySelectorAll("[data-cc]").forEach(b=>b.onclick=()=>{CT=null;owner()});
+ document.querySelectorAll("[data-cs]").forEach(b=>b.onclick=async()=>{const f=$("cf").value,m=+$("cm").value;if(f&&f<=ymd(new Date())){$("er2").textContent="La fecha de fin debe ser futura";return}if(!(m>=0&&m<=12)){$("er2").textContent="Los meses de aviso deben estar entre 0 y 12";return}
+  const r=await db.from("inmuebles").update({contrato_vence:f||null,preaviso_meses:m}).eq("id",b.dataset.cs);if(r.error){$("er2").textContent=r.error.message;return}CT=null;owner()});
  document.querySelectorAll("[data-vac]").forEach(b=>b.onclick=async()=>{if(!confirm("¿Marcar este inmueble como desocupado? Tu inquilino dejará de verlo y se genera un código nuevo para el próximo."))return;const r=await db.rpc("desocupar_inmueble",{p_id:b.dataset.vac});if(r.error){alert(r.error.message);return}owner()});
  if($("nuevo"))$("nuevo").onclick=()=>{ADDING=true;owner()};
  if($("cn"))$("cn").onclick=()=>{ADDING=false;owner()};
@@ -318,17 +349,19 @@ async function inmuebles(msg=""){
  document.querySelectorAll("[data-ok]").forEach(b=>b.onclick=async()=>{await db.from("pagos").update({estado:"confirmado",confirmado_en:new Date().toISOString()}).eq("id",b.dataset.ok);owner()});
  document.querySelectorAll("[data-sop]").forEach(b=>b.onclick=async()=>{const r=await db.storage.from("soportes").createSignedUrl(b.dataset.sop,300);if(r.data)window.open(r.data.signedUrl,"_blank");else $("er").textContent=r.error.message})}
 async function tenant(msg=""){
- const [i,g]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*")]);const x=(i.data||[])[0],G=g.data||[];
- if(!x){app.innerHTML=`<div class="card"><h2>Únete a tu inmueble</h2><p class="mut">Pídele a tu propietario el código de invitación.</p><input id="c" placeholder="Código"><div class="err" id="er">${msg}</div><button class="full" id="j">Unirme</button></div>`;
-  $("j").onclick=async()=>{const r=await db.rpc("unirse",{p_codigo:$("c").value});tenant(r.error?r.error.message:"")};return}
+ const [i,g,a]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*"),db.from("avisos_contrato").select("*").order("created_at",{ascending:false})]);const x=(i.data||[])[0],G=g.data||[],AV=a.data||[];
+ if(!x){app.innerHTML=`<div class="card"><h2>Únete a tu inmueble</h2><p class="mut">Pídele a tu propietario el código de invitación.</p><input id="c" placeholder="Código"><div class="err" id="er">${msg}</div><button class="full" id="j">Unirme</button></div>${compCard(G.filter(p=>p.estado=="confirmado").sort((a,b)=>b.periodo.localeCompare(a.periodo)),null)}`;
+  $("j").onclick=async()=>{const r=await db.rpc("unirse",{p_codigo:$("c").value});tenant(r.error?r.error.message:"")};document.querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>pdf(null,G.find(p=>p.id==b.dataset.pdf)));return}
  if(x.activo===false){app.innerHTML=`<div class="card"><h2>${esc(x.nombre)}</h2><p class="mut">Este inmueble está inactivo en Obvio!. Habla con tu propietario.</p></div>`;pushCard().then(eliminarCard);return}
- const s=estado(x,G),ref="OB-"+x.codigo.slice(0,4).toUpperCase()+"-"+per().slice(5,7),conf=G.filter(p=>p.inmueble_id==x.id&&p.estado=="confirmado").sort((a,b)=>b.periodo.localeCompare(a.periodo));
+ const s=estado(x,G),ref="OB-"+x.codigo.slice(0,4).toUpperCase()+"-"+per().slice(5,7),conf=G.filter(p=>p.estado=="confirmado").sort((a,b)=>b.periodo.localeCompare(a.periodo));
  app.innerHTML=`<div class="card" style="text-align:center"><div class="mut">${esc(x.nombre)}</div>${detalle(x)}<h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
  <div class="card"><div class="row"><span class="mut">Arriendo del mes</span><b style="font-size:22px">${cop(x.valor)}</b></div><div class="mut">Paga el día ${x.dia_pago}</div>
  ${s=="pend"||s=="mora"?`<div class="note"><b>Referencia de tu pago</b><br><span class="code">${ref}</span><br><span class="mut">Escríbela en la descripción de la transferencia.</span></div><select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por transferencia bancaria</option></select><div class="err" id="er">${msg}</div><label class="mut" style="display:block;margin-top:10px">Comprobante (opcional)</label><input id="f" type="file" accept="image/*,application/pdf"><button class="full" id="pay">Ya hice el pago</button>`:""}
  ${s=="wait"?`<p class="mut">Tu propietario debe confirmar el pago.</p>`:""}${s=="ok"?`<p class="mut">Pago confirmado. Estás al día.</p>`:""}</div>
- ${conf.length?`<div class="card"><h3>Mis comprobantes</h3>${conf.map(p=>`<div class="row" style="margin-top:8px"><span>${mes(p.periodo)} · ${cop(p.valor)}</span><button class="alt" data-pdf="${p.id}">Descargar PDF</button></div>`).join("")}</div>`:""}`;
- document.querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>pdf(x,G.find(p=>p.id==b.dataset.pdf)));pushCard().then(eliminarCard);if($("pay"))$("pay").onclick=async()=>{$("pay").disabled=true;let path=null;const f=$("f").files[0];
+ ${contratoInq(x,AV)}
+ ${compCard(conf,x)}`;
+ document.querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>pdf(x,G.find(p=>p.id==b.dataset.pdf)));document.querySelectorAll("[data-av]").forEach(b=>b.onclick=async()=>{if(b.dataset.av=="no_continuar"&&!confirm("¿Confirmas que NO vas a continuar con el contrato?"))return;const r=await db.rpc("avisar_continuidad",{p_inmueble:x.id,p_decision:b.dataset.av,p_nota:(($("nt")||{}).value||"").trim()||null});if(r.error){$("er3").textContent=r.error.message;return}tenant()});
+ pushCard().then(eliminarCard);if($("pay"))$("pay").onclick=async()=>{$("pay").disabled=true;let path=null;const f=$("f").files[0];
   if(f){if(f.size>5*1024*1024)return tenant("El comprobante pesa más de 5 MB");
    const ext=(f.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");path=x.id+"/"+per()+"-"+Date.now()+"."+ext;
    const u=await db.storage.from("soportes").upload(path,f);if(u.error)return tenant(u.error.message)}

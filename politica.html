@@ -5,7 +5,8 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}main{max-width:720px;margin:0 auto;padding:24px 16px 60px}
 h1{font-size:28px;letter-spacing:-.02em}h2{font-size:19px;margin-top:28px}a{color:var(--pri)}.mut{color:var(--mut);font-size:14px}</style></head>
 <body><main>
-<p><a href="./">← Volver a Obvio!</a></p>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><a href="./" id="back">← Volver a Obvio!</a><button id="lg" style="padding:8px 14px;border-radius:10px;border:1px solid var(--pri);background:none;color:var(--pri);font:700 14px system-ui;cursor:pointer"></button></div>
+<div id="es" lang="es">
 <h1>Política de tratamiento de datos personales</h1>
 <p class="mut">Versión 2026-11 · Aplicable a propietarios e inquilinos que usen Obvio!</p>
 
@@ -13,7 +14,7 @@ h1{font-size:28px;letter-spacing:-.02em}h2{font-size:19px;margin-top:28px}a{colo
 <p>Beken Bauher Marin, persona natural, titular de Obvio! (en adelante, «Obvio!»). Canal para consultas y solicitudes sobre datos personales: [CORREO DE CONTACTO]. Domicilio: [CIUDAD, COLOMBIA].</p>
 
 <h2>2. Datos que tratamos</h2>
-<p>Nombre, correo electrónico, rol (propietario o inquilino), datos de los inmuebles registrados (nombre, tipo, valor del arriendo y día de pago), registros de pagos y sus referencias, comprobantes de pago que usted decida subir, facturas de suscripción, datos técnicos para enviar notificaciones al dispositivo y la fecha en que aceptó esta política.</p>
+<p>Nombre, correo electrónico, rol (propietario o inquilino), datos de los inmuebles registrados (nombre, tipo, valor del arriendo y día de pago), registros de pagos y sus referencias, comprobantes de pago que usted decida subir, fotos de los inmuebles, facturas de suscripción, datos técnicos para enviar notificaciones al dispositivo, su preferencia de idioma y la fecha en que aceptó esta política.</p>
 
 <h2>3. Finalidades</h2>
 <p>Crear y administrar su cuenta; permitir el registro y seguimiento de pagos de arriendo entre propietario e inquilino; enviar recordatorios y avisos sobre pagos y vencimientos; gestionar planes de suscripción, pagos y facturación; atender solicitudes y reclamos; garantizar la seguridad de la plataforma y cumplir obligaciones legales.</p>
@@ -30,4 +31,36 @@ h1{font-size:28px;letter-spacing:-.02em}h2{font-size:19px;margin-top:28px}a{colo
 <h2>7. Cambios a esta política</h2>
 <p>Si esta política cambia, se publicará una nueva versión y se le pedirá aceptarla de nuevo cuando corresponda.</p>
 <p class="mut">Documento base sujeto a revisión legal antes de su uso comercial.</p>
+</div>
+<div id="en" lang="en" hidden><h1>Personal data processing policy</h1>
+<p class="mut">Version 2026-11 · Applies to owners and tenants who use Obvio!</p>
+
+<h2>1. Data controller</h2>
+<p>Beken Bauher Marin, an individual, owner of Obvio! (hereinafter, “Obvio!”). Contact channel for questions and requests about personal data: [CONTACT EMAIL]. Address: [CITY, COLOMBIA].</p>
+
+<h2>2. Data we process</h2>
+<p>Name, email address, role (owner or tenant), data of the registered properties (name, type, rent and payment day), payment records and their references, payment receipts you choose to upload, property photos, subscription invoices, technical data used to send notifications to your device, your language preference, and the date you accepted this policy.</p>
+
+<h2>3. Purposes</h2>
+<p>To create and manage your account; to allow rent payments to be recorded and tracked between owner and tenant; to send reminders and notices about payments, contracts and expirations; to manage subscription plans, payments and invoicing; to handle requests and claims; to keep the platform secure and to comply with legal obligations.</p>
+
+<h2>4. Data subject rights</h2>
+<p>Under Colombian Law 1581 of 2012 you may know, update and correct your data; request proof of your authorization; be informed about how your data is used; file complaints with the Superintendence of Industry and Commerce; revoke your authorization and request deletion of your data when there is no legal or contractual duty to keep it; and access your data free of charge. You can exercise these rights by writing to the channel in section 1 or by deleting your account from the “Account” section of the app.</p>
+
+<h2>5. Sharing and storing data</h2>
+<p>An owner sees the payment data of their own tenants and vice versa, only for the property they share. Obvio! does not sell your data. Information is stored with cloud infrastructure providers (for example, Supabase and GitHub), whose servers may be outside Colombia; Obvio! takes reasonable security and access-control measures.</p>
+
+<h2>6. Retention</h2>
+<p>Data is kept while the account is active. When an account is deleted, its associated data is removed, except for information that must be kept to meet legal obligations, such as invoicing records.</p>
+
+<h2>7. Changes to this policy</h2>
+<p>If this policy changes, a new version will be published and you will be asked to accept it again when applicable.</p>
+<p class="mut">Courtesy translation. Base document subject to legal review before commercial use.</p></div>
+<script>
+(function(){var l=null;try{l=new URLSearchParams(location.search).get("lang")||localStorage.obvio_lang}catch(e){}
+if(!l)l=(navigator.language||"es").toLowerCase().indexOf("en")==0?"en":"es";
+function ap(x){l=x;try{localStorage.obvio_lang=x}catch(e){}document.documentElement.lang=x;document.getElementById("es").hidden=x!="es";document.getElementById("en").hidden=x!="en";
+document.getElementById("lg").textContent=x=="en"?"ES":"EN";document.getElementById("back").textContent=x=="en"?"← Back to Obvio!":"← Volver a Obvio!";document.title=x=="en"?"Data processing policy · Obvio!":"Política de tratamiento de datos · Obvio!"}
+document.getElementById("lg").onclick=function(){ap(l=="en"?"es":"en")};ap(l)})();
+</script>
 </main></body></html>

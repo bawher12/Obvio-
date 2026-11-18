@@ -35,6 +35,7 @@ ul.ck{padding-left:18px;margin:8px 0 0}.live .r{display:flex;justify-content:spa
 footer.f{margin-top:40px;color:var(--mut);font-size:14px;text-align:center}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.stat{border-radius:12px;padding:12px 6px;text-align:center}.stat b{display:block;font-size:26px}.stat span{font-size:12px}.vac{background:var(--line);color:var(--mut)}
 .tabs{display:flex;gap:6px;margin-bottom:14px}.tabs button{flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line);padding:10px 6px}.tabs button[aria-pressed=true]{border-color:var(--pri);color:var(--pri)}
+.foto{display:block;width:100%;height:170px;object-fit:cover;border-radius:10px;margin-bottom:10px;background:var(--line)}
 .note{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
 </style></head><body>
 <div class="wrap" id="wrap"><header><button class="logo" id="home" aria-label="Ir al inicio" style="border:0;background:none;color:inherit;padding:0">Obvio<i>!</i></button><button class="alt" id="out" hidden>Salir</button></header><main id="app"></main></div>
@@ -165,6 +166,17 @@ function contratoInq(x,AV){
  <div class="row" style="gap:8px;margin-top:8px"><button style="flex:1" data-av="continuar">Quiero continuar</button><button class="alt" style="flex:1" data-av="no_continuar">No voy a continuar</button></div>
  <p class="mut" style="margin:10px 0 0;font-size:13px">Este aviso queda registrado en Obvio! y le llega a tu propietario. No reemplaza la notificación que exija la ley o tu contrato (por ejemplo, un aviso escrito por correo certificado). Confírmalo con un abogado.</p></div>`}
 const compCard=(conf,x)=>conf.length?`<div class="card"><h3>Mis comprobantes</h3>${conf.map(p=>`<div class="row" style="margin-top:8px"><span>${esc(mes(p.periodo))} · ${cop(p.valor)}${p.inmueble_nombre&&(!x||p.inmueble_id!=x.id)?'<br><span class="mut">'+esc(p.inmueble_nombre)+"</span>":""}</span><button class="alt" data-pdf="${p.id}">Descargar PDF</button></div>`).join("")}</div>`:"";
+const comprimir=file=>new Promise((ok,no)=>{const img=new Image(),u=URL.createObjectURL(file);
+ img.onload=()=>{const k=Math.min(1,1280/Math.max(img.width,img.height)),c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+  c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(b=>b?ok(b):no(new Error("No se pudo procesar la imagen")),"image/jpeg",0.82)};
+ img.onerror=()=>{URL.revokeObjectURL(u);no(new Error("No se pudo leer la imagen. Prueba con una foto JPG o PNG."))};img.src=u});
+async function urlsFotos(L){const ps=L.map(x=>x.foto_url).filter(Boolean),m={};if(!ps.length)return m;const r=await db.storage.from("fotos").createSignedUrls(ps,3600);(r.data||[]).forEach(o=>{if(o.signedUrl)m[o.path]=o.signedUrl});return m}
+const fotoHTML=(x,FU)=>x.foto_url&&FU[x.foto_url]?`<img class="foto" src="${esc(FU[x.foto_url])}" alt="Foto de ${esc(x.nombre)}" loading="lazy">`:"";
+function subirFoto(x){const fi=document.createElement("input");fi.type="file";fi.accept="image/*";
+ fi.onchange=async()=>{const f=fi.files[0];if(!f)return;if(f.size>20*1024*1024){alert("La imagen es muy pesada (máximo 20 MB).");return}
+  try{const b=await comprimir(f),path=x.id+"/"+Date.now()+".jpg",u=await db.storage.from("fotos").upload(path,b,{contentType:"image/jpeg"});if(u.error)throw u.error;
+   const r=await db.from("inmuebles").update({foto_url:path}).eq("id",x.id);if(r.error)throw r.error;
+   if(x.foto_url)await db.storage.from("fotos").remove([x.foto_url]);owner()}catch(e){alert("No se pudo subir la foto: "+(e.message||e))}};fi.click()}
 const CE={"A tiempo":"ok","Con atraso":"pend","Por confirmar":"wait"};
 const csvBlob=rows=>new Blob([csv(rows)],{type:"text/csv;charset=utf-8"});
 async function zipArchivos(z,bucket,carpeta,items,pg){let n=0;for(const it of items){n++;pg.textContent="Preparando archivos ("+n+" de "+items.length+")...";try{const r=await db.storage.from(bucket).createSignedUrl(it.path,120);if(!r.data)continue;const b=await(await fetch(r.data.signedUrl)).blob();z.file(carpeta+"/"+it.nombre,b)}catch(e){}}}
@@ -317,11 +329,12 @@ function eliminarCard(){const d=document.createElement("div");d.className="card"
 async function inmuebles(msg=""){
  const [i,g,a]=await Promise.all([db.from("inmuebles").select("*").order("created_at"),db.from("pagos").select("*"),db.from("avisos_contrato").select("*").order("created_at",{ascending:false})]);
  const I=i.data||[],G=g.data||[],AV=a.data||[],n=G.filter(p=>p.estado=="por_confirmar").length,ia=I.filter(x=>x.activo!==false).length,E=I.filter(x=>x.activo!==false).map(x=>estado(x,G)),ct=k=>E.filter(e=>e==k).length;
+ const FU=await urlsFotos(I);
  app.innerHTML=`<div class="card"><h3>Hola, ${esc(P.nombre)}</h3><div class="mut">Plan ${P.plan} · ${ia} ${ia==1?"inmueble activo":"inmuebles activos"}</div></div>
  ${I.length?`<div class="stats"><div class="stat ok"><b>${ct("ok")}</b><span>Al día</span></div><div class="stat pend"><b>${ct("pend")+ct("wait")}</b><span>Pendientes</span></div><div class="stat mora"><b>${ct("mora")}</b><span>En mora</span></div><div class="stat vac"><b>${ct("vac")}</b><span>Desocupados</span></div></div>`:""}
  ${n?`<div class="card" style="border-color:var(--wait)"><b>Tienes ${n} ${n==1?"pago":"pagos"} por confirmar</b></div>`:""}
  ${I.map(x=>{const s=estado(x,G),w=G.find(p=>p.inmueble_id==x.id&&p.periodo==per()&&p.estado=="por_confirmar");
-  return `<div class="card"><div class="row"><h3>${esc(x.nombre)}</h3>${x.activo===false?'<span class="badge wait">Archivado</span>':bd(s)}</div><div class="mut">${esc(x.tipo)} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>${detalle(x)}
+  return `<div class="card">${fotoHTML(x,FU)}<div class="row"><h3>${esc(x.nombre)}</h3>${x.activo===false?'<span class="badge wait">Archivado</span>':bd(s)}</div><div class="mut">${esc(x.tipo)} · ${cop(x.valor)} · paga el día ${x.dia_pago}</div>${detalle(x)}<div class="row" style="gap:8px;margin-top:8px"><button class="alt" style="flex:1" data-ph="${x.id}">${x.foto_url?"Cambiar foto":"Agregar foto"}</button>${x.foto_url?`<button class="alt" style="flex:1" data-rf="${x.id}">Quitar foto</button>`:""}</div>
   <div class="mut" style="margin-top:6px">${x.inquilino_id?`Con inquilino${x.ocupado_desde?" desde "+fecha(x.ocupado_desde):""}<br><button class="alt" style="margin-top:6px" data-vac="${x.id}">Marcar como desocupado</button>`:`Desocupado${x.desocupado_desde?" desde "+fecha(x.desocupado_desde):""} · código para invitar: <span class="code">${esc(x.codigo)}</span>`}</div>
   ${x.inquilino_id?(CT==x.id?formCt(x):contratoHTML(x,AV)):""}
   ${histHTML(x,G)}
@@ -333,6 +346,8 @@ async function inmuebles(msg=""){
  <input id="v" type="number" inputmode="numeric" placeholder="Valor del arriendo"><input id="d" type="number" inputmode="numeric" placeholder="Día de pago (1 a 28)">
  <div class="err" id="er">${msg}</div><button class="full" id="add">Guardar inmueble</button><button class="alt full" id="cn">Cancelar</button></div>`:`<button class="full" id="nuevo">+ Agregar inmueble</button>`}`;
  pushCard();
+ document.querySelectorAll("[data-ph]").forEach(b=>b.onclick=()=>subirFoto(I.find(v=>v.id==b.dataset.ph)));
+ document.querySelectorAll("[data-rf]").forEach(b=>b.onclick=async()=>{if(!confirm("¿Quitar la foto de este inmueble?"))return;const x=I.find(v=>v.id==b.dataset.rf),r=await db.from("inmuebles").update({foto_url:null}).eq("id",x.id);if(r.error){alert(r.error.message);return}await db.storage.from("fotos").remove([x.foto_url]);owner()});
  document.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{CT=b.dataset.ct;owner()});
  document.querySelectorAll("[data-cc]").forEach(b=>b.onclick=()=>{CT=null;owner()});
  document.querySelectorAll("[data-cs]").forEach(b=>b.onclick=async()=>{const f=$("cf").value,m=+$("cm").value;if(f&&f<=ymd(new Date())){$("er2").textContent="La fecha de fin debe ser futura";return}if(!(m>=0&&m<=12)){$("er2").textContent="Los meses de aviso deben estar entre 0 y 12";return}
@@ -349,12 +364,12 @@ async function inmuebles(msg=""){
  document.querySelectorAll("[data-ok]").forEach(b=>b.onclick=async()=>{await db.from("pagos").update({estado:"confirmado",confirmado_en:new Date().toISOString()}).eq("id",b.dataset.ok);owner()});
  document.querySelectorAll("[data-sop]").forEach(b=>b.onclick=async()=>{const r=await db.storage.from("soportes").createSignedUrl(b.dataset.sop,300);if(r.data)window.open(r.data.signedUrl,"_blank");else $("er").textContent=r.error.message})}
 async function tenant(msg=""){
- const [i,g,a]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*"),db.from("avisos_contrato").select("*").order("created_at",{ascending:false})]);const x=(i.data||[])[0],G=g.data||[],AV=a.data||[];
+ const [i,g,a]=await Promise.all([db.from("inmuebles").select("*"),db.from("pagos").select("*"),db.from("avisos_contrato").select("*").order("created_at",{ascending:false})]);const x=(i.data||[])[0],G=g.data||[],AV=a.data||[],FU=x?await urlsFotos([x]):{};
  if(!x){app.innerHTML=`<div class="card"><h2>Únete a tu inmueble</h2><p class="mut">Pídele a tu propietario el código de invitación.</p><input id="c" placeholder="Código"><div class="err" id="er">${msg}</div><button class="full" id="j">Unirme</button></div>${compCard(G.filter(p=>p.estado=="confirmado").sort((a,b)=>b.periodo.localeCompare(a.periodo)),null)}`;
   $("j").onclick=async()=>{const r=await db.rpc("unirse",{p_codigo:$("c").value});tenant(r.error?r.error.message:"")};document.querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>pdf(null,G.find(p=>p.id==b.dataset.pdf)));return}
  if(x.activo===false){app.innerHTML=`<div class="card"><h2>${esc(x.nombre)}</h2><p class="mut">Este inmueble está inactivo en Obvio!. Habla con tu propietario.</p></div>`;pushCard().then(eliminarCard);return}
  const s=estado(x,G),ref="OB-"+x.codigo.slice(0,4).toUpperCase()+"-"+per().slice(5,7),conf=G.filter(p=>p.estado=="confirmado").sort((a,b)=>b.periodo.localeCompare(a.periodo));
- app.innerHTML=`<div class="card" style="text-align:center"><div class="mut">${esc(x.nombre)}</div>${detalle(x)}<h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
+ app.innerHTML=`<div class="card" style="text-align:center">${fotoHTML(x,FU)}<div class="mut">${esc(x.nombre)}</div>${detalle(x)}<h2 style="font-size:38px;margin:6px 0">${ST[s]}</h2>${bd(s)}</div>
  <div class="card"><div class="row"><span class="mut">Arriendo del mes</span><b style="font-size:22px">${cop(x.valor)}</b></div><div class="mut">Paga el día ${x.dia_pago}</div>
  ${s=="pend"||s=="mora"?`<div class="note"><b>Referencia de tu pago</b><br><span class="code">${ref}</span><br><span class="mut">Escríbela en la descripción de la transferencia.</span></div><select id="m"><option value="bre-b">Pagué por Bre-B</option><option value="consignacion">Pagué por transferencia bancaria</option></select><div class="err" id="er">${msg}</div><label class="mut" style="display:block;margin-top:10px">Comprobante (opcional)</label><input id="f" type="file" accept="image/*,application/pdf"><button class="full" id="pay">Ya hice el pago</button>`:""}
  ${s=="wait"?`<p class="mut">Tu propietario debe confirmar el pago.</p>`:""}${s=="ok"?`<p class="mut">Pago confirmado. Estás al día.</p>`:""}</div>
